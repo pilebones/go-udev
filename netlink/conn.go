@@ -37,7 +37,7 @@ func (c *UEventConn) Connect() (err error) {
 		syscall.Close(c.Fd)
 	}
 
-	return nil
+	return err
 }
 
 // Close allow to close file descriptor and socket bound
