@@ -108,5 +108,5 @@ func getEventFromUEventFile(path string) (rv map[string]string, err error) {
 		rv[field[0]] = field[1]
 	}
 
-	return
+	return rv, nil
 }
