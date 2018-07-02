@@ -42,7 +42,7 @@ func (r RuleDefinition) EvaluateAction(a KObjAction) (match bool) {
 	if match = (r.rule.Action == nil); !match {
 		match = r.rule.Action.MatchString(a.String())
 	}
-	return match
+	return
 }
 
 // EvaluateEnv return true if all env match and exists

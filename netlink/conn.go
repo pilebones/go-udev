@@ -37,7 +37,7 @@ func (c *UEventConn) Connect() (err error) {
 		syscall.Close(c.Fd)
 	}
 
-	return err
+	return
 }
 
 // Close allow to close file descriptor and socket bound
@@ -74,7 +74,7 @@ func (c *UEventConn) ReadMsg() (msg []byte, err error) {
 	// Extract only real data from buffer and return that
 	msg = buf[:n]
 
-	return msg, nil
+	return
 }
 
 // ReadMsg allow to read an entire uevent msg

@@ -31,7 +31,7 @@ func ParseKObjAction(raw string) (a KObjAction, err error) {
 	default:
 		err = fmt.Errorf("unknow kobject action (got: %s)", raw)
 	}
-	return a, err
+	return
 }
 
 type UEvent struct {
@@ -113,5 +113,5 @@ func ParseUEvent(raw []byte) (e *UEvent, err error) {
 		}
 		e.Env[string(env[0])] = string(env[1])
 	}
-	return e, nil
+	return
 }
