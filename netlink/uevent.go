@@ -2,10 +2,8 @@ package netlink
 
 import (
 	"bytes"
-	"encoding/binary"
 	"fmt"
 	"strings"
-	"unsafe"
 )
 
 // See: http://elixir.free-electrons.com/linux/v3.12/source/lib/kobject_uevent.c#L45
@@ -20,8 +18,6 @@ const (
 	BIND    KObjAction = "bind"
 	UNBIND  KObjAction = "unbind"
 )
-
-const libudevMagic = 0xfeedcafe
 
 type KObjAction string
 
@@ -85,27 +81,11 @@ func (e UEvent) Equal(e2 UEvent) (bool, error) {
 	return true, nil
 }
 
-// Parse udev event created by udevd.
-// The format of the data header is internal to udev and defined in libudev-monitor.c - see the udev_monitor_netlink_header struct.
-// go-udev only looks at the "magic" number to filter out possibly invalid packets, and at the payload offset. Other fields of the header
-// are ignored.
-// Note, only some of the fields of the header use network byte order, for the rest udev uses native byte order of the platform.
 func parseUdevEvent(raw []byte) (e *UEvent, err error) {
-	// the magic number is stored in network byte order.
-	magic := binary.BigEndian.Uint32(raw[8:])
-	if magic != libudevMagic {
-		return nil, fmt.Errorf("cannot parse libudev event: magic number mismatch")
-	}
+	fields := bytes.Split(raw[40:], []byte{0x00}) // 0x00 = end of string
 
-	// the payload offset int is stored in native byte order.
-	payloadoff := *(*uint32)(unsafe.Pointer(&raw[16]))
-	if int(payloadoff) >= len(raw) {
-		return nil, fmt.Errorf("cannot parse libudev event: invalid data offset")
-	}
-
-	fields := bytes.Split(raw[payloadoff:], []byte{0x00}) // 0x00 = end of string
 	if len(fields) == 0 {
-		err = fmt.Errorf("cannot parse libudev event: data missing")
+		err = fmt.Errorf("Wrong libudev format")
 		return
 	}
 
@@ -113,7 +93,7 @@ func parseUdevEvent(raw []byte) (e *UEvent, err error) {
 	for _, envs := range fields[0 : len(fields)-1] {
 		env := bytes.Split(envs, []byte("="))
 		if len(env) != 2 {
-			err = fmt.Errorf("cannot parse libudev event: invalid env data")
+			err = fmt.Errorf("Wrong libudev env")
 			return
 		}
 		envdata[string(env[0])] = string(env[1])

@@ -12,8 +12,7 @@ type Mode int
 // See libudev/libudev-monitor.c.
 const (
 	KernelEvent Mode = 1
-	// Events that are processed by udev - much richer, with more attributes (such as vendor info, serial numbers and more).
-	UdevEvent Mode = 2
+	UdevEvent   Mode = 2
 )
 
 // Generic connection
