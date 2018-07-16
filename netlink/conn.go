@@ -6,15 +6,6 @@ import (
 	"syscall"
 )
 
-type Mode int
-
-// Mode determines event source: kernel events or udev-processed events.
-// See libudev/libudev-monitor.c.
-const (
-	KernelEvent Mode = 1
-	UdevEvent   Mode = 2
-)
-
 // Generic connection
 type NetlinkConn struct {
 	Fd   int
@@ -30,7 +21,7 @@ type UEventConn struct {
 // see:
 // - http://elixir.free-electrons.com/linux/v3.12/source/include/uapi/linux/netlink.h#L23
 // - http://elixir.free-electrons.com/linux/v3.12/source/include/uapi/linux/socket.h#L11
-func (c *UEventConn) Connect(mode Mode) (err error) {
+func (c *UEventConn) Connect() (err error) {
 
 	if c.Fd, err = syscall.Socket(syscall.AF_NETLINK, syscall.SOCK_RAW, syscall.NETLINK_KOBJECT_UEVENT); err != nil {
 		return
@@ -38,7 +29,7 @@ func (c *UEventConn) Connect(mode Mode) (err error) {
 
 	c.Addr = syscall.SockaddrNetlink{
 		Family: syscall.AF_NETLINK,
-		Groups: uint32(mode),
+		Groups: 1, // TODO: demistify this field because msg receive if Groups != 0
 		Pid:    uint32(os.Getpid()),
 	}
 
