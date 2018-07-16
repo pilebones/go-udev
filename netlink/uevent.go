@@ -21,7 +21,6 @@ const (
 	UNBIND  KObjAction = "unbind"
 )
 
-// The magic value used by udev, see https://github.com/systemd/systemd/blob/v239/src/libudev/libudev-monitor.c#L57
 const libudevMagic = 0xfeedcafe
 
 type KObjAction string
