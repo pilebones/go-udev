@@ -92,7 +92,7 @@ func TestParseUdevEvent(testing *testing.T) {
 			Action: REMOVE,
 			KObj:   "/devices/pci0000:00/0000:00:14.0/usb1/1-2/1-2:1.0/ttyUSB0/tty/ttyUSB0",
 			Env: map[string]string{
-				"MINOR": "0",
+				"MINOR":                          "0",
 				"ID_PCI_CLASS_FROM_DATABASE":     "Serial bus controller",
 				"ID_PCI_SUBCLASS_FROM_DATABASE":  "USB controller",
 				"ID_VENDOR_FROM_DATABASE":        "Future Technology Devices International, Ltd",
@@ -137,21 +137,21 @@ func TestParseUdevEvent(testing *testing.T) {
 			Action: ADD,
 			KObj:   "/devices/pci0000:00/0000:00:14.0/usb1/1-2",
 			Env: map[string]string{
-				"DEVTYPE":                "usb_device",
-				"SEQNUM":                 "4410",
-				"DRIVER":                 "usb",
-				"DEVPATH":                "/devices/pci0000:00/0000:00:14.0/usb1/1-2",
-				"SUBSYSTEM":              "usb",
-				"BUSNUM":                 "001",
-				"ID_USB_INTERFACES":      ":ff0000:",
-				"USEC_INITIALIZED":       "77155422759",
-				"ID_VENDOR_ENC":          "Silicon\\x20Labs",
-				"ID_VENDOR_ID":           "10c4",
-				"ID_SERIAL":              "Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001",
-				"ACTION":                 "add",
-				"DEVNAME":                "/dev/bus/usb/001/033",
-				"MAJOR":                  "189",
-				"ID_MODEL_FROM_DATABASE": "CP2102/CP2109 UART Bridge Controller [CP210x family]",
+				"DEVTYPE":                       "usb_device",
+				"SEQNUM":                        "4410",
+				"DRIVER":                        "usb",
+				"DEVPATH":                       "/devices/pci0000:00/0000:00:14.0/usb1/1-2",
+				"SUBSYSTEM":                     "usb",
+				"BUSNUM":                        "001",
+				"ID_USB_INTERFACES":             ":ff0000:",
+				"USEC_INITIALIZED":              "77155422759",
+				"ID_VENDOR_ENC":                 "Silicon\\x20Labs",
+				"ID_VENDOR_ID":                  "10c4",
+				"ID_SERIAL":                     "Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001",
+				"ACTION":                        "add",
+				"DEVNAME":                       "/dev/bus/usb/001/033",
+				"MAJOR":                         "189",
+				"ID_MODEL_FROM_DATABASE":        "CP2102/CP2109 UART Bridge Controller [CP210x family]",
 				"TYPE":                          "0/0/0",
 				"ID_REVISION":                   "0100",
 				"ID_BUS":                        "usb",
@@ -185,4 +185,117 @@ func TestParseUdevEvent(testing *testing.T) {
 	uevent, err = ParseUEvent(invalidOffset)
 	t.FatalfIf(err == nil && uevent != nil, "Event parsed successfully but it should be invalid, err: %s", err)
 	t.FatalfIf(err.Error() != "cannot parse libudev event: invalid data offset", "Expecting invalud offset error, got %s", err)
+}
+
+func TestUEventEquality(testing *testing.T) {
+	type testcase struct {
+		object    UEvent
+		object2   UEvent
+		mustEqual bool
+	}
+
+	t := testingWrapper{testing}
+
+	// Given
+	uevent1 := UEvent{
+		Action: ADD,
+		KObj:   "/devices/pci0000:00/0000:00:14.0/usb2/2-1/2-1:1.2/0003:04F2:0976.0008/hidraw/hidraw4",
+		Env: map[string]string{
+			"ACTION":    "add",
+			"DEVPATH":   "/devices/pci0000:00/0000:00:14.0/usb2/2-1/2-1:1.2/0003:04F2:0976.0008/hidraw/hidraw4",
+			"SUBSYSTEM": "hidraw",
+			"MAJOR":     "247",
+			"MINOR":     "4",
+			"DEVNAME":   "hidraw4",
+			"SEQNUM":    "2569",
+		},
+	}
+
+	uevent2 := UEvent{
+		Action: ADD,
+		KObj:   "/devices/pci0000:00/0000:00:14.0/usb2/2-1/2-1:1.2/0003:04F2:0976.0008/hidraw/hidraw4",
+		Env: map[string]string{
+			"ACTION":    "add",
+			"DEVPATH":   "/devices/pci0000:00/0000:00:14.0/usb2/2-1/2-1:1.2/0003:04F2:0976.0008/hidraw/hidraw4",
+			"SUBSYSTEM": "hidraw",
+			"MAJOR":     "247",
+			"MINOR":     "4",
+			"DEVNAME":   "hidraw4",
+			"SEQNUM":    "2569",
+			"foo":       "bar",
+		},
+	}
+
+	uevent3 := UEvent{
+		Action: ADD,
+		KObj:   "/devices/pci0000:00/0000:00:14.0/usb2/2-1/2-1:1.2/0003:04F2:0976.0008/hidraw/hidraw4",
+		Env: map[string]string{
+			"ACTION":    "add",
+			"DEVPATH":   "/devices/pci0000:00/0000:00:14.0/usb2/2-1/2-1:1.2/0003:04F2:0976.0008/hidraw/hidraw4",
+			"SUBSYSTEM": "hidraw",
+			"MAJOR":     "247",
+			"MINOR":     "4",
+			"DEVNAME":   "hidraw123",
+			"SEQNUM":    "2569",
+		},
+	}
+
+	uevent4 := UEvent{
+		Action: REMOVE,
+		KObj:   "/devices/pci0000:00/0000:00:14.0/usb2/2-1/2-1:1.2/0003:04F2:0976.0008/hidraw/hidraw4",
+		Env: map[string]string{
+			"ACTION":    "add",
+			"DEVPATH":   "/devices/pci0000:00/0000:00:14.0/usb2/2-1/2-1:1.2/0003:04F2:0976.0008/hidraw/hidraw4",
+			"SUBSYSTEM": "hidraw",
+			"MAJOR":     "247",
+			"MINOR":     "4",
+			"DEVNAME":   "hidraw4",
+			"SEQNUM":    "2569",
+		},
+	}
+
+	// When
+	testcases := []testcase{
+		testcase{
+			object:    uevent1,
+			object2:   uevent1,
+			mustEqual: true,
+		},
+		testcase{
+			object:    uevent1,
+			object2:   uevent2,
+			mustEqual: false,
+		},
+		testcase{
+			object:    uevent2,
+			object2:   uevent1,
+			mustEqual: false,
+		},
+		testcase{
+			object:    uevent1,
+			object2:   uevent3,
+			mustEqual: false,
+		},
+		testcase{
+			object:    uevent3,
+			object2:   uevent1,
+			mustEqual: false,
+		},
+		testcase{
+			object:    uevent1,
+			object2:   uevent4,
+			mustEqual: false,
+		},
+		testcase{
+			object:    uevent4,
+			object2:   uevent1,
+			mustEqual: false,
+		},
+	}
+
+	// Then
+	for i, tc := range testcases {
+		res, err := tc.object.Equal(tc.object2)
+		t.FatalfIf(tc.mustEqual != res, "not expected result (test n°%d, got: %t, expected: %t), err: %v", i, res, tc.mustEqual, err)
+	}
 }
