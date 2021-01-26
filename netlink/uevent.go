@@ -77,6 +77,7 @@ func (e UEvent) Equal(e2 UEvent) (bool, error) {
 		for i, e := range e2.Env {
 			if i == k && v == e {
 				found = true
+				break
 			}
 		}
 		if !found {

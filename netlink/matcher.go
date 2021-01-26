@@ -32,17 +32,19 @@ func (r RuleDefinition) Evaluate(e UEvent) bool {
 }
 
 // EvaluateAction return true if the action match
-func (r RuleDefinition) EvaluateAction(a KObjAction) (match bool) {
+func (r RuleDefinition) EvaluateAction(a KObjAction) bool {
 	// Compile if needed
 	if r.rule == nil {
 		if err := r.Compile(); err != nil {
 			return false
 		}
 	}
-	if match = (r.rule.Action == nil); !match {
-		match = r.rule.Action.MatchString(a.String())
+
+	if r.rule.Action == nil {
+		return true
 	}
-	return
+
+	return r.rule.Action.MatchString(a.String())
 }
 
 // EvaluateEnv return true if all env match and exists
@@ -123,6 +125,7 @@ func (e Env) Evaluate(env map[string]string) bool {
 				if !reg.MatchString(v) {
 					return false
 				}
+				break
 			}
 		}
 		if !foundEnv {
