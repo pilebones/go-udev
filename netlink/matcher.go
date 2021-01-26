@@ -1,8 +1,8 @@
 package netlink
 
 import (
-	"fmt"
 	"regexp"
+	"strings"
 )
 
 type Matcher interface {
@@ -81,7 +81,28 @@ func (r *RuleDefinition) Compile() error {
 }
 
 func (r RuleDefinition) String() string {
-	return fmt.Sprintf("Action: %v / Env: %+v", r.Action, r.Env)
+	b := strings.Builder{}
+	b.WriteString("ruledef ( ")
+
+	if r.Action == nil && len(r.Env) == 0 {
+		b.WriteString("empty")
+	} else {
+		if r.Action != nil {
+			b.WriteString("action=")
+			b.WriteString(*r.Action)
+			b.WriteRune(' ')
+		}
+
+		for k, v := range r.Env {
+			b.WriteString("env.")
+			b.WriteString(k)
+			b.WriteRune('=')
+			b.WriteString(v)
+			b.WriteRune(' ')
+		}
+	}
+	b.WriteString(")")
+	return b.String()
 }
 
 // rule is the compiled version of the RuleDefinition

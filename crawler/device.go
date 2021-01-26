@@ -3,6 +3,7 @@ package crawler
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -23,13 +24,14 @@ type Device struct {
 
 // ExistingDevices return all plugged devices matched by the matcher
 // All uevent files inside /sys/devices is crawled to match right env values
-func ExistingDevices(queue chan Device, errors chan error, matcher netlink.Matcher) chan struct{} {
+func ExistingDevices(queue chan Device, errs chan error, matcher netlink.Matcher) chan struct{} {
 	quit := make(chan struct{}, 1)
 
 	if matcher != nil {
 		if err := matcher.Compile(); err != nil {
-			errors <- fmt.Errorf("Wrong matcher, err: %v", err)
+			errs <- fmt.Errorf("Wrong matcher, err: %w", err)
 			quit <- struct{}{}
+			close(queue)
 			return quit
 		}
 	}
@@ -38,7 +40,7 @@ func ExistingDevices(queue chan Device, errors chan error, matcher netlink.Match
 		err := filepath.Walk(BASE_DEVPATH, func(path string, info os.FileInfo, err error) error {
 			select {
 			case <-quit:
-				return fmt.Errorf("abort signal receive")
+				return errors.New("abort signal receive")
 			default:
 				if err != nil {
 					return err
@@ -61,7 +63,6 @@ func ExistingDevices(queue chan Device, errors chan error, matcher netlink.Match
 				}
 
 				if matcher == nil || matcher.EvaluateEnv(env) {
-
 					queue <- Device{
 						KObj: kObj,
 						Env:  env,
@@ -72,8 +73,9 @@ func ExistingDevices(queue chan Device, errors chan error, matcher netlink.Match
 		})
 
 		if err != nil {
-			errors <- err
+			errs <- err
 		}
+
 		close(queue)
 	}()
 	return quit
