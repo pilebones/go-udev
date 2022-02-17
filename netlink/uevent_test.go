@@ -256,37 +256,37 @@ func TestUEventEquality(testing *testing.T) {
 
 	// When
 	testcases := []testcase{
-		testcase{
+		{
 			object:    uevent1,
 			object2:   uevent1,
 			mustEqual: true,
 		},
-		testcase{
+		{
 			object:    uevent1,
 			object2:   uevent2,
 			mustEqual: false,
 		},
-		testcase{
+		{
 			object:    uevent2,
 			object2:   uevent1,
 			mustEqual: false,
 		},
-		testcase{
+		{
 			object:    uevent1,
 			object2:   uevent3,
 			mustEqual: false,
 		},
-		testcase{
+		{
 			object:    uevent3,
 			object2:   uevent1,
 			mustEqual: false,
 		},
-		testcase{
+		{
 			object:    uevent1,
 			object2:   uevent4,
 			mustEqual: false,
 		},
-		testcase{
+		{
 			object:    uevent4,
 			object2:   uevent1,
 			mustEqual: false,
