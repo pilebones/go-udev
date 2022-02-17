@@ -1,0 +1,27 @@
+name: CI
+on:
+  push:
+    branches:
+    - master
+    - staging
+    - develop
+  pull_request:
+    branches:
+    - master
+    - staging
+    - develop
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Setup Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: '1.17'
+    - name: Run vet
+      run: go vet ./...
+    - name: Run tests
+      run: go test -v ./...
+    - name: Run build
+      run: go build .
