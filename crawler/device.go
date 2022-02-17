@@ -97,7 +97,7 @@ func getEventFromUEventFile(path string) (rv map[string]string, err error) {
 		return nil, err
 	}
 
-	rv = make(map[string]string, 0)
+	rv = make(map[string]string)
 	buf := bufio.NewScanner(bytes.NewBuffer(data))
 
 	var line string

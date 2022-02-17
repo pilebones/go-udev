@@ -111,7 +111,7 @@ func parseUdevEvent(raw []byte) (e *UEvent, err error) {
 		return
 	}
 
-	envdata := make(map[string]string, 0)
+	envdata := make(map[string]string)
 	for _, envs := range fields[0 : len(fields)-1] {
 		env := bytes.Split(envs, []byte("="))
 		if len(env) != 2 {
@@ -140,7 +140,7 @@ func parseUdevEvent(raw []byte) (e *UEvent, err error) {
 }
 
 func ParseUEvent(raw []byte) (e *UEvent, err error) {
-	if len(raw) > 40 && bytes.Compare(raw[:8], []byte("libudev\x00")) == 0 {
+	if len(raw) > 40 && bytes.Equal(raw[:8], []byte("libudev\x00")) {
 		return parseUdevEvent(raw)
 	}
 	fields := bytes.Split(raw, []byte{0x00}) // 0x00 = end of string
@@ -164,7 +164,7 @@ func ParseUEvent(raw []byte) (e *UEvent, err error) {
 	e = &UEvent{
 		Action: action,
 		KObj:   string(headers[1]),
-		Env:    make(map[string]string, 0),
+		Env:    make(map[string]string),
 	}
 
 	for _, envs := range fields[1 : len(fields)-1] {

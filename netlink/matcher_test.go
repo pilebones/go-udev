@@ -40,7 +40,7 @@ func TestRules(testing *testing.T) {
 
 		{
 			Action: &add,
-			Env:    make(map[string]string, 0),
+			Env:    make(map[string]string),
 		},
 
 		{

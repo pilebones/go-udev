@@ -61,7 +61,7 @@ func (r RuleDefinition) EvaluateEnv(e map[string]string) bool {
 // Compile prepare rule definition to be able to Evaluate() an UEvent
 func (r *RuleDefinition) Compile() error {
 	r.rule = &rule{
-		Env: make(map[string]*regexp.Regexp, 0),
+		Env: make(map[string]*regexp.Regexp),
 	}
 
 	if r.Action != nil {
