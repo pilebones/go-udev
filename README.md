@@ -1,7 +1,7 @@
-# go-udev [![Go Report Card](https://goreportcard.com/badge/github.com/pilebones/go-udev)](https://goreportcard.com/report/github.com/pilebones/go-udev) [![GoDoc](https://godoc.org/github.com/pilebones/go-udev?status.svg)](https://godoc.org/github.com/pilebones/go-udev) [![Build Status](https://travis-ci.org/pilebones/go-udev.svg?branch=master)](https://travis-ci.org/pilebones/go-udev)
+# go-udev [![Go Report Card](https://goreportcard.com/badge/github.com/pilebones/go-udev)](https://goreportcard.com/report/github.com/pilebones/go-udev) [![GitHub Repo stars](https://img.shields.io/github/stars/pilebones/go-udev)](https://somsubhra.github.io/github-release-stats/?username=pilebones&repository=go-udev) [![GoDoc](https://godoc.org/github.com/pilebones/go-udev?status.svg)](https://godoc.org/github.com/pilebones/go-udev) [![Release](https://img.shields.io/github/release/pilebones/go-udev.svg)](https://github.com/pilebones/go-udev/releases/latest) [![License](https://img.shields.io/github/license/pilebones/go-udev)](/LICENSE) ![Build Status](https://github.com/pilebones/go-udev/workflows/CI/badge.svg)
 
 Simple udev implementation in Golang developed from scratch.
-This library allow to listen and manage Linux-kernel (since version 2.6.10) Netlink messages to user space (ie: NETLINK_KOBJECT_UEVENT).
+This library allow to listen and manage Linux-kernel (since version 2.6.10) Netlink messages to user space (ie: `NETLINK_KOBJECT_UEVENT`).
 
 Like [`udev`](https://en.wikipedia.org/wiki/Udev) you will be able to monitor, display and manage devices plug to the system.
 

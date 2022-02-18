@@ -32,7 +32,7 @@ func main() {
 
 	matcher, err := getOptionnalMatcher()
 	if err != nil {
-		log.Fatalln(err.Error())
+		log.Fatalln(err)
 	}
 
 	if monitorMode == nil && infoMode == nil {
@@ -75,7 +75,7 @@ func info(matcher netlink.Matcher) {
 		select {
 		case device, more := <-queue:
 			if !more {
-				log.Printf("Finished processing existing devices\n")
+				log.Println("Finished processing existing devices")
 				return
 			}
 			log.Println("Detect device at", device.KObj, "with env", device.Env)
