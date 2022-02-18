@@ -22,6 +22,20 @@ jobs:
     - name: Run vet
       run: go vet ./...
     - name: Run tests
-      run: go test -v ./...
+      run: go test -v -coverprofile=profile.cov ./...
+    - name: Send coverage
+      uses: shogo82148/actions-goveralls@v1
+      with:
+        path-to-profile: profile.cov
+        flag-name: ${{ matrix.go }}
+        parallel: true
     - name: Run build
       run: go build .
+  coverage:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code coverage (Coveralls)
+        uses: shogo82148/actions-goveralls@v1
+        with:
+          parallel-finished: true

@@ -84,31 +84,29 @@ func ExistingDevices(queue chan Device, errs chan error, matcher netlink.Matcher
 // getEventFromUEventFile return all env var define in file
 // syntax: name=value for each line
 // Fonction use for /sys/.../uevent files
-func getEventFromUEventFile(path string) (rv map[string]string, err error) {
+func getEventFromUEventFile(path string) (map[string]string, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
-
 	defer f.Close()
 
 	data, err := ioutil.ReadAll(f)
 	if err != nil {
 		return nil, err
 	}
+	return getEventFromUEventData(data), nil
+}
 
-	rv = make(map[string]string)
+func getEventFromUEventData(data []byte) map[string]string {
+	rv := make(map[string]string)
 	buf := bufio.NewScanner(bytes.NewBuffer(data))
-
-	var line string
 	for buf.Scan() {
-		line = buf.Text()
-		field := strings.SplitN(line, "=", 2)
+		field := strings.SplitN(buf.Text(), "=", 2)
 		if len(field) != 2 {
-			return
+			return rv // TODO: return error ?
 		}
 		rv[field[0]] = field[1]
 	}
-
-	return
+	return rv
 }
