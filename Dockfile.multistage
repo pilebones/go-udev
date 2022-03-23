@@ -1,0 +1,14 @@
+## Build
+FROM golang:1.18.0-alpine3.15 AS builder
+WORKDIR /build
+COPY go.mod .
+COPY go.sum .
+RUN go mod download
+ADD . /build
+RUN CGO_ENABLED=0 go build -o /go-udev
+
+## Deploy
+FROM alpine:latest
+WORKDIR /
+COPY --from=builder /go-udev /go-udev
+ENTRYPOINT ["/go-udev"]
