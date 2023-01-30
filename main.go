@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -22,7 +23,7 @@ var (
 )
 
 func init() {
-	filePath = flag.String("file", "", "Optionnal input file path with matcher-rules (default: no matcher)")
+	filePath = flag.String("file", "", "Optional input file path with matcher-rules (default: no matcher)")
 	monitorMode = flag.Bool("monitor", false, "Enable monitor mode")
 	infoMode = flag.Bool("info", false, "Enable crawler mode")
 }
@@ -35,12 +36,12 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	if monitorMode == nil && infoMode == nil {
-		log.Fatalln("You should use only one mode:", os.Args[0], "-monitor|-info")
+	if *monitorMode == false && *infoMode == false {
+		log.Fatalln("You should enable one mode:", os.Args[0], "-monitor|-info")
 	}
 
 	if (monitorMode != nil && *monitorMode) && (infoMode != nil && *infoMode) {
-		log.Fatalln("Unable to enable both mode : monitor & info")
+		log.Fatalln("Unable to enable both modes : monitor & info")
 	}
 
 	if *monitorMode {
@@ -56,23 +57,21 @@ func main() {
 func info(matcher netlink.Matcher) {
 	log.Println("Get existing devices...")
 
-	queue := make(chan crawler.Device)
 	errors := make(chan error)
-	quit := crawler.ExistingDevices(queue, errors, matcher)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	queue := crawler.ExistingDevices(ctx.Done(), errors, matcher)
 
 	// Signal handler to quit properly monitor mode
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-	go func() {
-		<-signals
-		log.Println("Exiting info mode...")
-		close(quit)
-		os.Exit(0)
-	}()
 
 	// Handling message from queue
 	for {
 		select {
+		case <-signals:
+			log.Println("Exiting info mode...")
+			return
 		case device, more := <-queue:
 			if !more {
 				log.Println("Finished processing existing devices")
@@ -89,15 +88,16 @@ func info(matcher netlink.Matcher) {
 func monitor(matcher netlink.Matcher) {
 	log.Println("Monitoring UEvent kernel message to user-space...")
 
-	conn := new(netlink.UEventConn)
+	conn := netlink.UEventConn{}
 	if err := conn.Connect(netlink.UdevEvent); err != nil {
 		log.Fatalln("Unable to connect to Netlink Kobject UEvent socket")
 	}
 	defer conn.Close()
 
-	queue := make(chan netlink.UEvent)
 	errors := make(chan error)
-	quit := conn.Monitor(queue, errors, matcher)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	queue := conn.Monitor(ctx.Done(), errors, matcher)
 
 	// Signal handler to quit properly monitor mode
 	signals := make(chan os.Signal, 1)
@@ -105,7 +105,7 @@ func monitor(matcher netlink.Matcher) {
 	go func() {
 		<-signals
 		log.Println("Exiting monitor mode...")
-		close(quit)
+		cancel()
 		os.Exit(0)
 	}()
 

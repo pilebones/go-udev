@@ -123,24 +123,25 @@ func (c *UEventConn) ReadUEvent() (*UEvent, error) {
 // Monitor run in background a worker to read netlink msg in loop and notify
 // when msg receive inside a queue using channel.
 // To be notified with only relevant message, use Matcher.
-func (c *UEventConn) Monitor(queue chan UEvent, errs chan error, matcher Matcher) chan struct{} {
-	quit := make(chan struct{}, 1)
+func (c *UEventConn) Monitor(doneCh <-chan struct{}, errs chan error, matcher Matcher) chan UEvent {
+    queue := make(chan UEvent)
+
 	if matcher != nil {
 		if err := matcher.Compile(); err != nil {
 			errs <- fmt.Errorf("Wrong matcher, err: %w", err)
-			quit <- struct{}{}
 			close(queue)
-			return quit
+			return nil
 		}
 	}
 
 	go func() {
+		defer close(queue)
 		bufToRead := make(chan *[]byte, 1)
 		count := 0
 	loop:
 		for {
 			select {
-			case <-quit:
+			case <-doneCh:
 				break loop // stop iteration in case of stop signal received
 			case buf := <-bufToRead: // Read one by one
 				err := c.msgRead(buf)
@@ -175,5 +176,5 @@ func (c *UEventConn) Monitor(queue chan UEvent, errs chan error, matcher Matcher
 			}
 		}
 	}()
-	return quit
+	return queue
 }
