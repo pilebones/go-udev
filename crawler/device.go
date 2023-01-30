@@ -24,22 +24,22 @@ type Device struct {
 
 // ExistingDevices return all plugged devices matched by the matcher
 // All uevent files inside /sys/devices is crawled to match right env values
-func ExistingDevices(queue chan Device, errs chan error, matcher netlink.Matcher) chan struct{} {
-	quit := make(chan struct{}, 1)
+func ExistingDevices(doneCh <-chan struct{}, errs chan error, matcher netlink.Matcher) chan Device {
+	queue := make(chan Device)
 
 	if matcher != nil {
 		if err := matcher.Compile(); err != nil {
 			errs <- fmt.Errorf("Wrong matcher, err: %w", err)
-			quit <- struct{}{}
 			close(queue)
-			return quit
+			return nil
 		}
 	}
 
 	go func() {
+		defer close(queue)
 		err := filepath.Walk(BASE_DEVPATH, func(path string, info os.FileInfo, err error) error {
 			select {
-			case <-quit:
+			case <-doneCh:
 				return errors.New("abort signal receive")
 			default:
 				if err != nil {
@@ -75,10 +75,8 @@ func ExistingDevices(queue chan Device, errs chan error, matcher netlink.Matcher
 		if err != nil {
 			errs <- err
 		}
-
-		close(queue)
 	}()
-	return quit
+	return queue
 }
 
 // getEventFromUEventFile return all env var define in file
