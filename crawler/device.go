@@ -57,9 +57,6 @@ func ExistingDevices(queue chan Device, errs chan error, matcher netlink.Matcher
 				}
 
 				kObj := filepath.Dir(path)
-				if !strings.HasPrefix(kObj, SYSFS_ROOT) {
-					return fmt.Errorf("invalid kernel object path: %s", kObj)
-				}
 
 				// Append to env subsystem if existing
 				if link, err := os.Readlink(kObj + "/subsystem"); err == nil {
