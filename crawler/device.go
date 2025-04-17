@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -80,19 +79,9 @@ func ExistingDevices(queue chan Device, errs chan error, matcher netlink.Matcher
 	return quit
 }
 
-// getEventFromUEventFile return all env var define in file
-// syntax: name=value for each line
-// Fonction use for /sys/.../uevent files
+// getEventFromUEventFile return all variables defined in /sys/**/uevent files
 func getEventFromUEventFile(path string) (map[string]string, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		_ = f.Close()
-	}()
-
-	data, err := io.ReadAll(f)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
