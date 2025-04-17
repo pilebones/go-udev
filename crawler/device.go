@@ -87,7 +87,7 @@ func getEventFromUEventFile(path string) (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return getEventFromUEventData(data), nil
+	return getEventFromUEventData(data)
 }
 
 // syntax: name=value for each line
