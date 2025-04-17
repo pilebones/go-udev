@@ -33,8 +33,8 @@ type UEventConn struct {
 // Connect allow to connect to system socket AF_NETLINK with family NETLINK_KOBJECT_UEVENT to
 // catch events about block/char device
 // see:
-// - http://elixir.free-electrons.com/linux/v3.12/source/include/uapi/linux/netlink.h#L23
-// - http://elixir.free-electrons.com/linux/v3.12/source/include/uapi/linux/socket.h#L11
+// - https://elixir.bootlin.com/linux/v6.14.1/source/include/uapi/linux/netlink.h#L23
+// - https://elixir.bootlin.com/linux/v6.14.1/source/include/uapi/linux/socket.h#L11
 func (c *UEventConn) Connect(mode Mode) (err error) {
 	if c.Fd, err = syscall.Socket(syscall.AF_NETLINK, syscall.SOCK_RAW, syscall.NETLINK_KOBJECT_UEVENT); err != nil {
 		return
