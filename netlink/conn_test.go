@@ -9,11 +9,15 @@ func TestConnect(t *testing.T) {
 	if err := conn.Connect(UdevEvent); err != nil {
 		t.Fatal("unable to subscribe to netlink uevent, err:", err)
 	}
-	defer conn.Close()
+	defer func() {
+		_ = conn.Close()
+	}()
 
 	conn2 := new(UEventConn)
 	if err := conn2.Connect(UdevEvent); err != nil {
 		t.Fatal("unable to subscribe to netlink uevent a second time, err:", err)
 	}
-	defer conn2.Close()
+	defer func() {
+		_ = conn2.Close()
+	}()
 }

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/signal"
@@ -93,7 +92,9 @@ func monitor(matcher netlink.Matcher) {
 	if err := conn.Connect(netlink.UdevEvent); err != nil {
 		log.Fatalln("Unable to connect to Netlink Kobject UEvent socket")
 	}
-	defer conn.Close()
+	defer func() {
+		_ = conn.Close()
+	}()
 
 	queue := make(chan netlink.UEvent)
 	errors := make(chan error)
@@ -118,7 +119,6 @@ func monitor(matcher netlink.Matcher) {
 			log.Println("ERROR:", err)
 		}
 	}
-
 }
 
 // getOptionnalMatcher Parse and load config file which contains rules for matching
@@ -127,18 +127,18 @@ func getOptionnalMatcher() (matcher netlink.Matcher, err error) {
 		return nil, nil
 	}
 
-	stream, err := ioutil.ReadFile(*filePath)
+	stream, err := os.ReadFile(*filePath)
 	if err != nil {
 		return nil, err
 	}
 
 	if stream == nil {
-		return nil, fmt.Errorf("Empty, no rules provided in \"%s\", err: %w", *filePath, err)
+		return nil, fmt.Errorf("empty, no rules provided in \"%s\", err: %w", *filePath, err)
 	}
 
 	var rules netlink.RuleDefinitions
 	if err := json.Unmarshal(stream, &rules); err != nil {
-		return nil, fmt.Errorf("Wrong rule syntax, err: %w", err)
+		return nil, fmt.Errorf("wrong rule syntax, err: %w", err)
 	}
 
 	return &rules, nil

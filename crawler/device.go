@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,7 +29,7 @@ func ExistingDevices(queue chan Device, errs chan error, matcher netlink.Matcher
 
 	if matcher != nil {
 		if err := matcher.Compile(); err != nil {
-			errs <- fmt.Errorf("Wrong matcher, err: %w", err)
+			errs <- fmt.Errorf("wrong matcher, err: %w", err)
 			quit <- struct{}{}
 			close(queue)
 			return quit
@@ -71,7 +71,6 @@ func ExistingDevices(queue chan Device, errs chan error, matcher netlink.Matcher
 				return nil
 			}
 		})
-
 		if err != nil {
 			errs <- err
 		}
@@ -89,9 +88,11 @@ func getEventFromUEventFile(path string) (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
-	data, err := ioutil.ReadAll(f)
+	data, err := io.ReadAll(f)
 	if err != nil {
 		return nil, err
 	}

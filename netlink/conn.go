@@ -36,7 +36,6 @@ type UEventConn struct {
 // - http://elixir.free-electrons.com/linux/v3.12/source/include/uapi/linux/netlink.h#L23
 // - http://elixir.free-electrons.com/linux/v3.12/source/include/uapi/linux/socket.h#L11
 func (c *UEventConn) Connect(mode Mode) (err error) {
-
 	if c.Fd, err = syscall.Socket(syscall.AF_NETLINK, syscall.SOCK_RAW, syscall.NETLINK_KOBJECT_UEVENT); err != nil {
 		return
 	}
@@ -47,7 +46,7 @@ func (c *UEventConn) Connect(mode Mode) (err error) {
 	}
 
 	if err = syscall.Bind(c.Fd, &c.Addr); err != nil {
-		syscall.Close(c.Fd)
+		_ = syscall.Close(c.Fd)
 	}
 
 	return
@@ -127,7 +126,7 @@ func (c *UEventConn) Monitor(queue chan UEvent, errs chan error, matcher Matcher
 	quit := make(chan struct{}, 1)
 	if matcher != nil {
 		if err := matcher.Compile(); err != nil {
-			errs <- fmt.Errorf("Wrong matcher, err: %w", err)
+			errs <- fmt.Errorf("wrong matcher, err: %w", err)
 			quit <- struct{}{}
 			close(queue)
 			return quit
@@ -145,13 +144,13 @@ func (c *UEventConn) Monitor(queue chan UEvent, errs chan error, matcher Matcher
 			case buf := <-bufToRead: // Read one by one
 				err := c.msgRead(buf)
 				if err != nil {
-					errs <- fmt.Errorf("Unable to read uevent, err: %w", err)
+					errs <- fmt.Errorf("unable to read uevent, err: %w", err)
 					break loop // stop iteration in case of error
 				}
 
 				uevent, err := ParseUEvent(*buf)
 				if err != nil {
-					errs <- fmt.Errorf("Unable to parse uevent, err: %w", err)
+					errs <- fmt.Errorf("unable to parse uevent, err: %w", err)
 					continue loop // Drop uevent if not known
 				}
 
@@ -168,7 +167,7 @@ func (c *UEventConn) Monitor(queue chan UEvent, errs chan error, matcher Matcher
 			default:
 				_, buf, err := c.msgPeek()
 				if err != nil {
-					errs <- fmt.Errorf("Unable to check available uevent, err: %w", err)
+					errs <- fmt.Errorf("unable to check available uevent, err: %w", err)
 					break loop // stop iteration in case of error
 				}
 				bufToRead <- buf

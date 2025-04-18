@@ -3,6 +3,7 @@ package netlink
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"strings"
 	"unsafe"
@@ -23,6 +24,8 @@ const (
 
 // The magic value used by udev, see https://github.com/systemd/systemd/blob/v239/src/libudev/libudev-monitor.c#L57
 const libudevMagic = 0xfeedcafe
+
+var ErrWrongUEventFormat = errors.New("wrong uevent format")
 
 type KObjAction string
 
@@ -60,15 +63,15 @@ func (e UEvent) Bytes() []byte {
 
 func (e UEvent) Equal(e2 UEvent) (bool, error) {
 	if e.Action != e2.Action {
-		return false, fmt.Errorf("Wrong action (got: %s, wanted: %s)", e.Action, e2.Action)
+		return false, fmt.Errorf("wrong action (got: %s, wanted: %s)", e.Action, e2.Action)
 	}
 
 	if e.KObj != e2.KObj {
-		return false, fmt.Errorf("Wrong kobject (got: %s, wanted: %s)", e.KObj, e2.KObj)
+		return false, fmt.Errorf("wrong kobject (got: %s, wanted: %s)", e.KObj, e2.KObj)
 	}
 
 	if len(e.Env) != len(e2.Env) {
-		return false, fmt.Errorf("Wrong length of env (got: %d, wanted: %d)", len(e.Env), len(e2.Env))
+		return false, fmt.Errorf("wrong length of env (got: %d, wanted: %d)", len(e.Env), len(e2.Env))
 	}
 
 	var found bool
@@ -81,7 +84,7 @@ func (e UEvent) Equal(e2 UEvent) (bool, error) {
 			}
 		}
 		if !found {
-			return false, fmt.Errorf("Unable to find %s=%s env var from uevent", k, v)
+			return false, fmt.Errorf("unable to find %s=%s env var from uevent", k, v)
 		}
 	}
 	return true, nil
@@ -139,29 +142,27 @@ func parseUdevEvent(raw []byte) (e *UEvent, err error) {
 	return
 }
 
-func ParseUEvent(raw []byte) (e *UEvent, err error) {
+func ParseUEvent(raw []byte) (*UEvent, error) {
 	if len(raw) > 40 && bytes.Equal(raw[:8], []byte("libudev\x00")) {
 		return parseUdevEvent(raw)
 	}
 	fields := bytes.Split(raw, []byte{0x00}) // 0x00 = end of string
 
 	if len(fields) == 0 {
-		err = fmt.Errorf("Wrong uevent format")
-		return
+		return nil, ErrWrongUEventFormat
 	}
 
 	headers := bytes.Split(fields[0], []byte("@")) // 0x40 = @
 	if len(headers) != 2 {
-		err = fmt.Errorf("Wrong uevent header")
-		return
+		return nil, ErrWrongUEventFormat
 	}
 
 	action, err := ParseKObjAction(string(headers[0]))
 	if err != nil {
-		return
+		return nil, ErrWrongUEventFormat
 	}
 
-	e = &UEvent{
+	e := &UEvent{
 		Action: action,
 		KObj:   string(headers[1]),
 		Env:    make(map[string]string),
@@ -170,10 +171,10 @@ func ParseUEvent(raw []byte) (e *UEvent, err error) {
 	for _, envs := range fields[1 : len(fields)-1] {
 		env := bytes.Split(envs, []byte("="))
 		if len(env) != 2 {
-			err = fmt.Errorf("Wrong uevent env")
-			return
+			return nil, ErrWrongUEventFormat
 		}
 		e.Env[string(env[0])] = string(env[1])
 	}
-	return
+
+	return e, nil
 }
