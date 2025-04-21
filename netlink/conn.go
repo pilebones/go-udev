@@ -63,7 +63,7 @@ func (c *UEventConn) msgPeek() (int, *[]byte, error) {
 	buf := make([]byte, os.Getpagesize())
 	for {
 		// Just read how many bytes are available in the socket
-		// Warning: syscall.MSG_PEEK is a blocking call
+		// WARNING: syscall.MSG_PEEK is a blocking call (no testable from CI)
 		if n, _, err = syscall.Recvfrom(c.Fd, buf, syscall.MSG_PEEK); err != nil {
 			return n, &buf, err
 		}
