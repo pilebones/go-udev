@@ -1,6 +1,7 @@
 package netlink
 
 import (
+	"fmt"
 	"runtime"
 	"testing"
 )
@@ -61,7 +62,6 @@ func TestParseUEvent(testing *testing.T) {
 
 	uevent, err := ParseUEvent(raw)
 	t.FatalfIf(err == nil && uevent != nil, "Event parsed successfully but it should be invalid, err: %s", err.Error())
-
 }
 
 func TestParseUdevEvent(testing *testing.T) {
@@ -124,7 +124,9 @@ func TestParseUdevEvent(testing *testing.T) {
 				"USEC_INITIALIZED":               "75223543693",
 				"ID_PCI_INTERFACE_FROM_DATABASE": "XHCI",
 				"ID_SERIAL_SHORT":                "AH06W0EQ",
-			}}}, {
+			},
+		},
+	}, {
 		Input: []byte("libudev\x00\xfe\xed\xca\xfe(\x00\x00\x00(\x00\x00\x00\xf2\x02\x00\x00\x05w\xc5\xe5'\xf8\xf5\f\x00\x00\x00\x00\x00\x00\x00\x00" +
 			"ACTION=add\x00DEVPATH=/devices/pci0000:00/0000:00:14.0/usb1/1-2\x00SUBSYSTEM=usb\x00DEVNAME=/dev/bus/usb/001/033\x00DEVTYPE=usb_device\x00" +
 			"PRODUCT=10c4/ea60/100\x00TYPE=0/0/0\x00BUSNUM=001\x00DEVNUM=033\x00SEQNUM=4410\x00MAJOR=189\x00MINOR=32\x00USEC_INITIALIZED=77155422759\x00" +
@@ -254,6 +256,20 @@ func TestUEventEquality(testing *testing.T) {
 		},
 	}
 
+	uevent5 := UEvent{
+		Action: REMOVE,
+		KObj:   "/devices/pci0000:00/0000:00:14.0/usb2/2-1/2-1:1.2/0003:04F2:0976.0008/hidraw/hidraw5",
+		Env: map[string]string{
+			"ACTION":    "add",
+			"DEVPATH":   "/devices/pci0000:00/0000:00:14.0/usb2/2-1/2-1:1.2/0003:04F2:0976.0008/hidraw/hidraw4",
+			"SUBSYSTEM": "hidraw",
+			"MAJOR":     "247",
+			"MINOR":     "4",
+			"DEVNAME":   "hidraw4",
+			"SEQNUM":    "2569",
+		},
+	}
+
 	// When
 	testcases := []testcase{
 		{
@@ -261,34 +277,44 @@ func TestUEventEquality(testing *testing.T) {
 			object2:   uevent1,
 			mustEqual: true,
 		},
-		{
+		{ // wrong env number
 			object:    uevent1,
 			object2:   uevent2,
 			mustEqual: false,
 		},
-		{
+		{ // wrong env number
 			object:    uevent2,
 			object2:   uevent1,
 			mustEqual: false,
 		},
-		{
+		{ // wrong env value
 			object:    uevent1,
 			object2:   uevent3,
 			mustEqual: false,
 		},
-		{
+		{ // wrong env value
 			object:    uevent3,
 			object2:   uevent1,
 			mustEqual: false,
 		},
-		{
+		{ // wrong action
 			object:    uevent1,
 			object2:   uevent4,
 			mustEqual: false,
 		},
-		{
+		{ // wrong action
 			object:    uevent4,
 			object2:   uevent1,
+			mustEqual: false,
+		},
+		{ // wrong kobj
+			object:    uevent4,
+			object2:   uevent5,
+			mustEqual: false,
+		},
+		{ // wrong kobj
+			object:    uevent5,
+			object2:   uevent4,
 			mustEqual: false,
 		},
 	}
@@ -297,5 +323,23 @@ func TestUEventEquality(testing *testing.T) {
 	for i, tc := range testcases {
 		res, err := tc.object.Equal(tc.object2)
 		t.FatalfIf(tc.mustEqual != res, "not expected result (test n°%d, got: %t, expected: %t), err: %v", i, res, tc.mustEqual, err)
+	}
+}
+
+func TestParseKObjAction(t *testing.T) {
+	for _, action := range []KObjAction{ADD, REMOVE, CHANGE, MOVE, ONLINE, OFFLINE, BIND, UNBIND} {
+		a, err := ParseKObjAction(action.String())
+		if err != nil {
+			t.Fatalf("Unable to parse KObjAction %s: %v", action.String(), err)
+		}
+		if a != action {
+			t.Fatalf(`action must be equal got: "%s", expected: "%s"`, a.String(), action.String())
+		}
+	}
+
+	fakeKObjAction := "wrong"
+	expectedError := fmt.Errorf("unknow kobject action (got: %s)", fakeKObjAction)
+	if _, err := ParseKObjAction(fakeKObjAction); err.Error() != expectedError.Error() {
+		t.Fatalf("wrong kobj action must be detected, got: %v", err)
 	}
 }
