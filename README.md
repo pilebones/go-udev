@@ -1,4 +1,7 @@
-# go-udev [![Go Report Card](https://goreportcard.com/badge/github.com/pilebones/go-udev)](https://goreportcard.com/report/github.com/pilebones/go-udev) [![GitHub Repo stars](https://img.shields.io/github/stars/pilebones/go-udev)](https://somsubhra.github.io/github-release-stats/?username=pilebones&repository=go-udev) [![GoDoc](https://godoc.org/github.com/pilebones/go-udev?status.svg)](https://godoc.org/github.com/pilebones/go-udev) [![Release](https://img.shields.io/github/release/pilebones/go-udev.svg)](https://github.com/pilebones/go-udev/releases/latest) [![License](https://img.shields.io/github/license/pilebones/go-udev)](/LICENSE) ![Build Status](https://github.com/pilebones/go-udev/workflows/CI/badge.svg) [![Coverage Status](https://coveralls.io/repos/github/pilebones/go-udev/badge.svg?branch=master)](https://coveralls.io/github/pilebones/go-udev?branch=master)
+# go-udev [![GitHub Repo stars](https://img.shields.io/github/stars/pilebones/go-udev)](https://somsubhra.github.io/github-release-stats/?username=pilebones&repository=go-udev)
+
+[![Go Report Card](https://goreportcard.com/badge/github.com/pilebones/go-udev)](https://goreportcard.com/report/github.com/pilebones/go-udev) ![Build Status](https://github.com/pilebones/go-udev/workflows/CI/badge.svg) [![Linters Status](https://github.com/pilebones/go-udev/actions/workflows/golangci-lint.yml/badge.svg)](https://github.com/pilebones/go-udev/actions/workflows/golangci-lint.yml) [![Coverage Status](https://coveralls.io/repos/github/pilebones/go-udev/badge.svg?branch=master)](https://coveralls.io/github/pilebones/go-udev?branch=master)
+ [![GoDoc](https://godoc.org/github.com/pilebones/go-udev?status.svg)](https://godoc.org/github.com/pilebones/go-udev) [![Release](https://img.shields.io/github/release/pilebones/go-udev.svg)](https://github.com/pilebones/go-udev/releases/latest) [![License](https://img.shields.io/github/license/pilebones/go-udev)](/LICENSE)
 
 Simple udev implementation in Golang developed from scratch.
 This library allow to listen and manage Linux-kernel (since version 2.6.10) Netlink messages to user space (ie: `NETLINK_KOBJECT_UEVENT`).
@@ -53,6 +56,7 @@ Handle all kernel message to detect change about plugged or unplugged devices:
 #### Examples
 
 Example of output when a USB storage is plugged:
+
 ```
 2017/10/20 23:47:23 Handle netlink.UEvent{
     Action: "add",
@@ -73,6 +77,7 @@ Example of output when a USB storage is plugged:
 ```
 
 Example of output when a USB storage is unplugged:
+
 ```
 [...]
 2017/10/20 23:47:29 Handle netlink.UEvent{
@@ -102,6 +107,7 @@ Is it possible to filter uevents/devices with a Matcher.
 A Matcher is a list of your own rules to match only relevant uevent kernel message (see: `matcher.sample`).
 
 You could pass this file using for both mode:
+
 ```
 ./go-udev -file  matcher.sample [...]
 
@@ -110,19 +116,23 @@ You could pass this file using for both mode:
 ## Docker usage
 
 ### How to build docker image
+
 ```
 docker build . -f Dockfile.multistage -t go-udev
 ```
 
 ### How to execute `go-udev -info` using docker image
+
 ```
 docker run -rm -t go-udev -info
 ```
 
 ### How to execute `go-udev -monitor` using docker image
+
 ```
 docker run --rm -v=/dev:/dev -v /run/udev:/run/udev:ro --net=host -t go-udev -monitor
 ```
+
 Warning: unsafe method because we share host /dev directory to the container.
 
 *__TODO__: unsafe and `-monitor` is not fully functional in docker, fix working in progress...*
@@ -133,12 +143,13 @@ Don't hesitate to notice if you detect a problem with this tool or library.
 
 ## Links
 
-- Netlink Manual: http://man7.org/linux/man-pages/man7/netlink.7.html
-- Linux source code about: 
-  * Struct sockaddr_netlink: http://elixir.free-electrons.com/linux/v3.12/source/lib/kobject_uevent.c#L45
-  * KObject action: http://elixir.free-electrons.com/linux/v3.12/source/lib/kobject_uevent.c#L45
+- Netlink Manual: <http://man7.org/linux/man-pages/man7/netlink.7.html>
+- Linux source code about:
+  - Struct sockaddr_netlink: <http://elixir.free-electrons.com/linux/v3.12/source/lib/kobject_uevent.c#L45>
+  - KObject action: <http://elixir.free-electrons.com/linux/v3.12/source/lib/kobject_uevent.c#L45>
 
 ## Documentation
+
 - [GoDoc Reference](http://godoc.org/github.com/pilebones/go-udev).
 
 ## License
