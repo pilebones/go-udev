@@ -107,6 +107,26 @@ You could pass this file using for both mode:
 
 ```
 
+## Docker usage
+
+### How to build docker image
+```
+docker build . -f Dockfile.multistage -t go-udev
+```
+
+### How to execute `go-udev -info` using docker image
+```
+docker run -rm -t go-udev -info
+```
+
+### How to execute `go-udev -monitor` using docker image
+```
+docker run --rm -v=/dev:/dev -v /run/udev:/run/udev:ro --net=host -t go-udev -monitor
+```
+Warning: unsafe method because we share host /dev directory to the container.
+
+*__TODO__: unsafe and `-monitor` is not fully functional in docker, fix working in progress...*
+
 ## Throubleshooting
 
 Don't hesitate to notice if you detect a problem with this tool or library.
