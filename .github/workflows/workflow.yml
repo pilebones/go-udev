@@ -2,35 +2,35 @@ name: CI
 on:
   push:
     branches:
-    - master
-    - staging
-    - develop
+      - master
+      - staging
+      - develop
   pull_request:
     branches:
-    - master
-    - staging
-    - develop
+      - master
+      - staging
+      - develop
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-    - name: Setup Go
-      uses: actions/setup-go@v2
-      with:
-        go-version: '1.17'
-    - name: Run vet
-      run: go vet ./...
-    - name: Run tests
-      run: go test -v -coverprofile=profile.cov ./...
-    - name: Send coverage
-      uses: shogo82148/actions-goveralls@v1
-      with:
-        path-to-profile: profile.cov
-        flag-name: ${{ matrix.go }}
-        parallel: true
-    - name: Run build
-      run: go build .
+      - uses: actions/checkout@v2
+      - name: Setup Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: "1.24"
+      - name: Run vet
+        run: go vet ./...
+      - name: Run tests
+        run: go test -v -coverprofile=profile.cov ./...
+      - name: Send coverage
+        uses: shogo82148/actions-goveralls@v1
+        with:
+          path-to-profile: profile.cov
+          flag-name: ${{ matrix.go }}
+          parallel: true
+      - name: Run build
+        run: go build .
   coverage:
     needs: test
     runs-on: ubuntu-latest
