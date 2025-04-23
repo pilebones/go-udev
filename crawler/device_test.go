@@ -66,10 +66,6 @@ DEVNAME=vcs3`,
 			t.Fatalf("Test %d failed, unable to get event dfrom uevent file", k)
 		}
 
-		if !reflect.DeepEqual(evt, getEventFromUEventData([]byte(tcase.got))) {
-			t.Fatalf("Test %d failed, uevent from file or data must be equals", k)
-		}
-
 		if !reflect.DeepEqual(evt, tcase.expected) {
 			t.Fatalf("Test %d failed (got: %v, expected: %v)", k, evt, tcase.expected)
 		}

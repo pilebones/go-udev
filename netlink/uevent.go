@@ -9,7 +9,7 @@ import (
 	"unsafe"
 )
 
-// See: http://elixir.free-electrons.com/linux/v3.12/source/lib/kobject_uevent.c#L45
+// See: https://elixir.bootlin.com/linux/v6.14.1/source/lib/kobject_uevent.c#L50
 
 const (
 	ADD     KObjAction = "add"
