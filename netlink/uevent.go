@@ -178,3 +178,11 @@ func ParseUEvent(raw []byte) (*UEvent, error) {
 
 	return e, nil
 }
+
+func (e UEvent) Devnode() string {
+	return e.Env["DEVNAME"]
+}
+
+func (e UEvent) Syspath() string {
+	return "/sys" + e.KObj
+}
