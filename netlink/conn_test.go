@@ -40,7 +40,7 @@ func TestMonitor(t *testing.T) {
 	errs := make(chan error)
 	quit := conn.Monitor(queue, errs, nil)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second) // Monitor 5s then stop for testing
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second) // Monitor 5s then stop for testing
 	// The errs channel is left open on purpose: the worker may still emit while the test returns.
 	defer func() {
 		close(quit)
@@ -110,7 +110,7 @@ func TestMonitorWithContextStopsOnCancel(t *testing.T) {
 	queue := make(chan UEvent)
 	errs := make(chan error, 1)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	go conn.MonitorWithContext(ctx, queue, errs, nil)
 
 	cancel()

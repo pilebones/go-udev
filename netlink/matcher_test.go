@@ -39,7 +39,7 @@ func TestRuleDefinitionsCompileInvalid(t *testing.T) {
 
 func TestRules(testing *testing.T) {
 	type testcase struct {
-		object interface{}
+		object any
 		valid  bool
 	}
 

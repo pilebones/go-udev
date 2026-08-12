@@ -132,7 +132,7 @@ func TestMonitorIgnoresForgedUEvent(t *testing.T) {
 	queue := make(chan UEvent)
 	errs := make(chan error, 8)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 	go conn.MonitorWithContext(ctx, queue, errs, nil)
 

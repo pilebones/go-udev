@@ -21,6 +21,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Changed
 
+- **Requirement**: `go.mod`, the builder image and the CI toolchain move from Go 1.24 to Go 1.26, so building
+  the module now needs a Go 1.26 toolchain. The modernizations `go fix` suggests for that language version are
+  applied: `interface{}` becomes `any`, a counting loop becomes `for range 2`, and the two `String` methods
+  concatenating in a loop use a `strings.Builder`. Tests derive their context from `t.Context()`, so a worker
+  cannot outlive its test.
 - Cancelling a monitoring now stops its worker within 200 ms even when no event happens, where closing the
   `Monitor` quit channel used to be noticed only when the next event woke the worker up, which on an idle
   machine could be never. `ReadMsg` and `ReadUEvent` still block until a message arrives.

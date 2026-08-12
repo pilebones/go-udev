@@ -1,6 +1,6 @@
 ## Build
 # Keep this version in sync with the go directive of go.mod
-FROM golang:1.24-alpine AS builder
+FROM golang:1.26-alpine AS builder
 WORKDIR /build
 # go.sum is optional, the library has no dependency
 COPY go.mod go.sum* ./

@@ -22,7 +22,7 @@ func TestFormat(t *testing.T) {
 		`Env: {ACTION="add", DEVPATH="/devices/pci0000:00/0000:00:14.0/usb1/1-1", MAJOR="189", SUBSYSTEM="usb"}}`
 
 	// Called twice to ensure the env vars order does not depend on the map iteration order
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		if got := format(uevent); got != expected {
 			t.Fatalf("wrong output\n got: %s\nwant: %s", got, expected)
 		}

@@ -181,9 +181,9 @@ func (rs *RuleDefinitions) EvaluateEnv(e map[string]string) bool {
 }
 
 func (rs *RuleDefinitions) String() string {
-	output := ""
+	var output strings.Builder
 	for i := range rs.Rules {
-		output += "- " + rs.Rules[i].String() + "\n"
+		output.WriteString("- " + rs.Rules[i].String() + "\n")
 	}
-	return output
+	return output.String()
 }

@@ -91,7 +91,7 @@ func TestExistingDevices(t *testing.T) {
 	errs := make(chan error)
 	quit := ExistingDevices(queue, errs, nil)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 
 	// The errs channel is left open on purpose: the worker may still emit while the test returns.
 	defer func() {
