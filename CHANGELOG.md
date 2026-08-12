@@ -5,7 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased](https://github.com/pilebones/go-udev/compare/v0.9.2...master)
+## [Unreleased](https://github.com/pilebones/go-udev/compare/v0.10.0...master)
+
+## [v0.10.0](https://github.com/pilebones/go-udev/compare/v0.9.2...v0.10.0) - 2026-08-12
+
+Hardening release: forged uevents are rejected, monitoring stops when asked to, reading an event costs a
+single syscall and the library has no dependency left.
 
 ### Security
 
@@ -16,8 +21,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Added
 
-- `UEventConn.MonitorWithContext` monitors until its `context.Context` is cancelled. `Monitor` is kept as
-  a wrapper for existing callers but the context based API should be preferred.
+- **API**: `UEventConn.MonitorWithContext` monitors until its `context.Context` is cancelled. `Monitor` is
+  kept as a wrapper for existing callers but the context based API should be preferred.
+- **API**: `UEventConn.ReceiveBufferSize` sets the size requested for the socket receive queue.
+- `netlink`: a libudev header written with the opposite byte order is now rejected with an explicit error instead of
+  being decoded as a bogus payload offset. The magic number is byte order agnostic, so the header size is what
+  detects it.
 
 ### Changed
 
@@ -26,16 +35,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
   applied: `interface{}` becomes `any`, a counting loop becomes `for range 2`, and the two `String` methods
   concatenating in a loop use a `strings.Builder`. Tests derive their context from `t.Context()`, so a worker
   cannot outlive its test.
+- **API**: the command line tool moved from the root package to `cmd/go-udev`, install it with
+  `go install github.com/pilebones/go-udev/cmd/go-udev@latest` and build it with `go build ./cmd/go-udev`.
 - Cancelling a monitoring now stops its worker within 200 ms even when no event happens, where closing the
   `Monitor` quit channel used to be noticed only when the next event woke the worker up, which on an idle
   machine could be never. `ReadMsg` and `ReadUEvent` still block until a message arrives.
 - Reading a uevent now takes a single `recvmsg` syscall instead of a `MSG_PEEK` probe, one syscall per
   buffer enlargement and a final read. A message longer than 32 KiB, which the kernel never produces, is
   reported as `ErrTruncatedMessage` and dropped instead of being handed over partially parsed.
-- `Connect` enlarges the socket receive queue to 2 MiB, configurable with the new
-  `UEventConn.ReceiveBufferSize` field, to avoid the kernel dropping events during a burst.
-- The command line tool moved from the root package to `cmd/go-udev`, install it with
-  `go install github.com/pilebones/go-udev/cmd/go-udev@latest` and build it with `go build ./cmd/go-udev`.
+- `Connect` enlarges the socket receive queue to 2 MiB to avoid the kernel dropping events during a burst.
 - The `github.com/kr/pretty` dependency is dropped, the module now has no external dependency at all. Uevents are
   printed by a local formatter which sorts the env vars, so the output is stable from one run to the next.
 
@@ -44,12 +52,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - `netlink`: `TestParseUdevEvent` embedded libudev headers captured on a little endian machine, so it was skipped on
   `s390x` and failed outright on `ppc64`, `mips` and `mips64`, which the skip list did not cover. The headers are now
   built at test time in the byte order of the platform, so the udev format is really covered everywhere.
-
-### Added
-
-- `netlink`: a libudev header written with the opposite byte order is now rejected with an explicit error instead of
-  being decoded as a bogus payload offset. The magic number is byte order agnostic, so the header size is what
-  detects it.
+- The `go-udev` rule of `.gitignore` was not anchored, so it also excluded the new `cmd/go-udev` directory.
 
 ## [v0.9.2](https://github.com/pilebones/go-udev/compare/v0.9.1...v0.9.2) - 2026-08-12
 
