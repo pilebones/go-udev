@@ -106,6 +106,37 @@ You could pass this file using for both mode:
 
 ```
 
+### Library usage
+
+Monitoring stops as soon as the context is cancelled, and the queue is closed when the worker returns:
+
+```go
+conn := new(netlink.UEventConn)
+if err := conn.Connect(netlink.UdevEvent); err != nil {
+	log.Fatalln("unable to subscribe to netlink uevent, err:", err)
+}
+defer conn.Close()
+
+ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+defer stop()
+
+queue, errs := make(chan netlink.UEvent), make(chan error)
+go conn.MonitorWithContext(ctx, queue, errs, nil) // pass a netlink.Matcher to filter the events
+
+for {
+	select {
+	case uevent, more := <-queue:
+		if !more {
+			return
+		}
+		log.Println("handle", uevent.Action, uevent.KObj)
+	case err := <-errs:
+		// Reading errors are not fatal, a dropped message does not stop the monitoring
+		log.Println("ERROR:", err)
+	}
+}
+```
+
 ## Docker usage
 
 ### How to build docker image
