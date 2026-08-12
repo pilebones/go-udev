@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -98,19 +99,14 @@ func monitor(matcher netlink.Matcher) {
 		_ = conn.Close()
 	}()
 
-	queue := make(chan netlink.UEvent)
-	errors := make(chan error)
-	quit := conn.Monitor(queue, errors, matcher)
+	// Signals cancel the context, so the monitoring stops and the socket is closed by the deferred call
+	// instead of the process exiting from a signal handler goroutine.
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	defer stop()
 
-	// Signal handler to quit properly monitor mode
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-	go func() {
-		<-signals
-		log.Println("Exiting monitor mode...")
-		close(quit)
-		os.Exit(0)
-	}()
+	queue := make(chan netlink.UEvent)
+	errs := make(chan error)
+	go conn.MonitorWithContext(ctx, queue, errs, matcher)
 
 	// Handling message from queue
 	for {
@@ -121,7 +117,7 @@ func monitor(matcher netlink.Matcher) {
 				return
 			}
 			log.Println("Handle", format(uevent))
-		case err := <-errors:
+		case err := <-errs:
 			log.Println("ERROR:", err)
 		}
 	}

@@ -3,6 +3,7 @@
 package netlink
 
 import (
+	"context"
 	"errors"
 	"runtime"
 )
@@ -66,13 +67,33 @@ func (c *UEventConn) ReadUEvent() (*UEvent, error) {
 	return nil, ErrNotSupported
 }
 
+// MonitorWithContext reports ErrNotSupported then returns immediately on non-Linux platforms.
+func (c *UEventConn) MonitorWithContext(ctx context.Context, queue chan UEvent, errs chan error, matcher Matcher) {
+	defer close(queue)
+
+	select {
+	case errs <- ErrNotSupported:
+	case <-ctx.Done():
+	}
+}
+
 // Monitor reports ErrNotSupported then stops immediately on non-Linux platforms.
 func (c *UEventConn) Monitor(queue chan UEvent, errs chan error, matcher Matcher) chan struct{} {
 	quit := make(chan struct{}, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	stopped := make(chan struct{})
+	go func() {
+		defer close(stopped)
+		c.MonitorWithContext(ctx, queue, errs, matcher)
+	}()
 
 	go func() {
-		defer close(queue)
-		errs <- ErrNotSupported
+		defer cancel()
+		select {
+		case <-quit:
+		case <-stopped:
+		}
 	}()
 
 	return quit

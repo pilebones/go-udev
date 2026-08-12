@@ -7,8 +7,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased](https://github.com/pilebones/go-udev/compare/v0.9.2...master)
 
+### Added
+
+- `UEventConn.MonitorWithContext` monitors until its `context.Context` is cancelled. `Monitor` is kept as
+  a wrapper for existing callers but the context based API should be preferred.
+
 ### Changed
 
+- Cancelling a monitoring now stops its worker within 200 ms even when no event happens, where closing the
+  `Monitor` quit channel used to be noticed only when the next event woke the worker up, which on an idle
+  machine could be never. `ReadMsg` and `ReadUEvent` still block until a message arrives.
 - Reading a uevent now takes a single `recvmsg` syscall instead of a `MSG_PEEK` probe, one syscall per
   buffer enlargement and a final read. A message longer than 32 KiB, which the kernel never produces, is
   reported as `ErrTruncatedMessage` and dropped instead of being handed over partially parsed.
