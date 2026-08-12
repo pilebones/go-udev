@@ -16,3 +16,8 @@
 go-udev
 *.log
 *.swp
+
+# Local environment files, they must never be committed since they usually hold credentials
+.env
+.envrc
+*.envrc
