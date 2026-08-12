@@ -1,3 +1,5 @@
+//go:build linux
+
 package netlink
 
 import (
@@ -7,15 +9,22 @@ import (
 	"syscall"
 )
 
-type Mode int
-
 // Mode determines event source: kernel events or udev-processed events.
 // See libudev/libudev-monitor.c.
+type Mode int
+
 const (
 	KernelEvent Mode = 1
 	// Events that are processed by udev - much richer, with more attributes (such as vendor info, serial numbers and more).
 	UdevEvent Mode = 2
 )
+
+// closedFd is the value of the Fd field when the connection holds no socket.
+// It is not zero because zero is a valid file descriptor (stdin), which must never be closed by mistake.
+const closedFd = -1
+
+// ErrNotConnected is returned when an operation needs a socket but Connect() was not called (or already closed).
+var ErrNotConnected = errors.New("netlink socket not connected")
 
 // Generic connection
 type NetlinkConn struct {
@@ -36,7 +45,9 @@ type UEventConn struct {
 // - http://elixir.free-electrons.com/linux/v3.12/source/include/uapi/linux/netlink.h#L23
 // - http://elixir.free-electrons.com/linux/v3.12/source/include/uapi/linux/socket.h#L11
 func (c *UEventConn) Connect(mode Mode) (err error) {
-	if c.Fd, err = syscall.Socket(syscall.AF_NETLINK, syscall.SOCK_RAW, syscall.NETLINK_KOBJECT_UEVENT); err != nil {
+	// SOCK_CLOEXEC avoids leaking the socket to child processes.
+	if c.Fd, err = syscall.Socket(syscall.AF_NETLINK, syscall.SOCK_RAW|syscall.SOCK_CLOEXEC, syscall.NETLINK_KOBJECT_UEVENT); err != nil {
+		c.Fd = closedFd
 		return
 	}
 
@@ -47,6 +58,7 @@ func (c *UEventConn) Connect(mode Mode) (err error) {
 
 	if err = syscall.Bind(c.Fd, &c.Addr); err != nil {
 		_ = syscall.Close(c.Fd)
+		c.Fd = closedFd
 	}
 
 	return
@@ -54,12 +66,25 @@ func (c *UEventConn) Connect(mode Mode) (err error) {
 
 // Close allow to close file descriptor and socket bound
 func (c *UEventConn) Close() error {
-	return syscall.Close(c.Fd)
+	// Guard against closing an unrelated descriptor: the zero value of the struct holds Fd 0 (stdin).
+	if c.Fd <= 0 {
+		return ErrNotConnected
+	}
+
+	err := syscall.Close(c.Fd)
+	c.Fd = closedFd
+
+	return err
 }
 
 func (c *UEventConn) msgPeek() (int, *[]byte, error) {
 	var n int
 	var err error
+
+	if c.Fd <= 0 {
+		return 0, nil, ErrNotConnected
+	}
+
 	buf := make([]byte, os.Getpagesize())
 	for {
 		// Just read how many bytes are available in the socket
@@ -82,6 +107,10 @@ func (c *UEventConn) msgPeek() (int, *[]byte, error) {
 func (c *UEventConn) msgRead(buf *[]byte) error {
 	if buf == nil {
 		return errors.New("empty buffer")
+	}
+
+	if c.Fd <= 0 {
+		return ErrNotConnected
 	}
 
 	n, _, err := syscall.Recvfrom(c.Fd, *buf, 0)
@@ -109,7 +138,7 @@ func (c *UEventConn) ReadMsg() (msg []byte, err error) {
 	return *buf, err
 }
 
-// ReadMsg allow to read an entire uevent msg
+// ReadUEvent allow to read and parse an entire uevent msg
 func (c *UEventConn) ReadUEvent() (*UEvent, error) {
 	msg, err := c.ReadMsg()
 	if err != nil {
@@ -122,18 +151,22 @@ func (c *UEventConn) ReadUEvent() (*UEvent, error) {
 // Monitor run in background a worker to read netlink msg in loop and notify
 // when msg receive inside a queue using channel.
 // To be notified with only relevant message, use Matcher.
+// The queue is closed when the worker stops, whatever the reason, so the caller can detect the end of the monitoring.
 func (c *UEventConn) Monitor(queue chan UEvent, errs chan error, matcher Matcher) chan struct{} {
 	quit := make(chan struct{}, 1)
-	if matcher != nil {
-		if err := matcher.Compile(); err != nil {
-			errs <- fmt.Errorf("wrong matcher, err: %w", err)
-			quit <- struct{}{}
-			close(queue)
-			return quit
-		}
-	}
 
 	go func() {
+		// Never emit on errs before returning quit to the caller: an unbuffered errs channel
+		// would block forever because the caller cannot read it yet.
+		defer close(queue)
+
+		if matcher != nil {
+			if err := matcher.Compile(); err != nil {
+				errs <- fmt.Errorf("wrong matcher, err: %w", err)
+				return
+			}
+		}
+
 		bufToRead := make(chan *[]byte, 1)
 		count := 0
 	loop:
@@ -159,7 +192,12 @@ func (c *UEventConn) Monitor(queue chan UEvent, errs chan error, matcher Matcher
 						continue loop // Drop uevent if not match
 					}
 				}
-				queue <- *uevent
+				select {
+				case queue <- *uevent:
+				case <-quit:
+					break loop // stop iteration rather than blocking forever on a queue nobody reads
+				}
+
 				count++
 				if c.MatchedUEventLimit > 0 && count >= c.MatchedUEventLimit {
 					break loop // stop iteration when reach limit of uevent
