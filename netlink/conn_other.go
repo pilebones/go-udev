@@ -17,12 +17,17 @@ const (
 	UdevEvent Mode = 2
 )
 
-// ErrNotConnected is returned when an operation needs a socket but Connect() was not called (or already closed).
-var ErrNotConnected = errors.New("netlink socket not connected")
+var (
+	// ErrNotConnected is returned when an operation needs a socket but Connect() was not called (or already closed).
+	ErrNotConnected = errors.New("netlink socket not connected")
 
-// ErrNotSupported is returned by every operation requiring a NETLINK_KOBJECT_UEVENT socket, which only exists on Linux.
-// The uevent parsing and matching API remains usable on other platforms.
-var ErrNotSupported = errors.New("netlink kobject uevent is only supported on linux, got: " + runtime.GOOS)
+	// ErrTruncatedMessage exists for API parity with Linux, where a message too big to be read is dropped.
+	ErrTruncatedMessage = errors.New("netlink message too big, it is dropped")
+
+	// ErrNotSupported is returned by every operation requiring a NETLINK_KOBJECT_UEVENT socket, which only exists on Linux.
+	// The uevent parsing and matching API remains usable on other platforms.
+	ErrNotSupported = errors.New("netlink kobject uevent is only supported on linux, got: " + runtime.GOOS)
+)
 
 // Generic connection
 type NetlinkConn struct {
@@ -33,7 +38,12 @@ type UEventConn struct {
 	NetlinkConn
 
 	// Options
-	MatchedUEventLimit int // allow to stop monitor mode after X event(s) matched by the matcher
+
+	// MatchedUEventLimit allows to stop monitor mode after X event(s) matched by the matcher
+	MatchedUEventLimit int
+
+	// ReceiveBufferSize is the size, in bytes, requested for the socket receive queue on Linux.
+	ReceiveBufferSize int
 }
 
 // Connect always fails on non-Linux platforms.

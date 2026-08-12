@@ -9,6 +9,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Changed
 
+- Reading a uevent now takes a single `recvmsg` syscall instead of a `MSG_PEEK` probe, one syscall per
+  buffer enlargement and a final read. A message longer than 32 KiB, which the kernel never produces, is
+  reported as `ErrTruncatedMessage` and dropped instead of being handed over partially parsed.
+- `Connect` enlarges the socket receive queue to 2 MiB, configurable with the new
+  `UEventConn.ReceiveBufferSize` field, to avoid the kernel dropping events during a burst.
 - The command line tool moved from the root package to `cmd/go-udev`, install it with
   `go install github.com/pilebones/go-udev/cmd/go-udev@latest` and build it with `go build ./cmd/go-udev`.
 - The `github.com/kr/pretty` dependency is dropped, the module now has no external dependency at all. Uevents are
