@@ -16,10 +16,12 @@ jobs:
     name: lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version: "1.26"
+          # The module has no dependency, hence no go.sum for the cache to key on.
+          cache-dependency-path: go.mod
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v8
         with:
