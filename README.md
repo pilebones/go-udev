@@ -8,6 +8,9 @@ This library allow to listen and manage Linux-kernel (since version 2.6.10) Netl
 
 Like [`udev`](https://en.wikipedia.org/wiki/Udev) you will be able to monitor, display and manage devices plug to the system.
 
+Monitoring requires a Linux kernel: on other platforms the module still builds and the uevent parsing/matching API stays
+available, but `UEventConn` methods return `netlink.ErrNotSupported`.
+
 ## How to
 
 ### Get sources
@@ -118,13 +121,13 @@ You could pass this file using for both mode:
 ### How to build docker image
 
 ```
-docker build . -f Dockfile.multistage -t go-udev
+docker build . -t go-udev
 ```
 
 ### How to execute `go-udev -info` using docker image
 
 ```
-docker run -rm -t go-udev -info
+docker run --rm -t go-udev -info
 ```
 
 ### How to execute `go-udev -monitor` using docker image
@@ -137,7 +140,7 @@ Warning: unsafe method because we share host /dev directory to the container.
 
 *__TODO__: unsafe and `-monitor` is not fully functional in docker, fix working in progress...*
 
-## Throubleshooting
+## Troubleshooting
 
 Don't hesitate to notice if you detect a problem with this tool or library.
 

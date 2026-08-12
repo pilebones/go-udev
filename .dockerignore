@@ -1,4 +1,8 @@
 LICENSE
-readme.md
+README.md
 matcher.sample
 .git
+.github
+Dockerfile
+.dockerignore
+*.envrc
