@@ -4,6 +4,7 @@ package netlink
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 )
@@ -42,10 +43,8 @@ func TestMonitor(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second) // Monitor 5s then stop for testing
 	// The errs channel is left open on purpose: the worker may still emit while the test returns.
-	defer func() {
-		close(quit)
-		cancel()
-	}()
+	defer cancel()
+	defer waitMonitoringStopped(t, func() { close(quit) }, queue)
 
 loop:
 	for {
@@ -62,6 +61,17 @@ loop:
 		case err := <-errs:
 			t.Fatalf("unable to monitor uevent, err: %v", err)
 		}
+	}
+}
+
+// waitMonitoringStopped stops the monitoring and waits for the worker to have left its last receive, which
+// it signals by closing the queue. The socket can only be closed afterwards: closing it earlier would write
+// the descriptor field while the worker is still reading it.
+func waitMonitoringStopped(t *testing.T, stop func(), queue chan UEvent) {
+	t.Helper()
+
+	stop()
+	for range queue { // drain until the worker closes the queue
 	}
 }
 
@@ -130,9 +140,9 @@ func TestMonitorWithContextStopsOnCancel(t *testing.T) {
 	}
 }
 
-// TestReadMsgWaitsForMessage ensures the receive timeout used to stop the monitoring stays invisible to
-// ReadMsg, which is documented as blocking until a message arrives.
-func TestReadMsgWaitsForMessage(t *testing.T) {
+// TestReceiveTimesOut ensures the socket carries the receive timeout which lets the monitoring notice a
+// cancelled context on an idle machine.
+func TestReceiveTimesOut(t *testing.T) {
 	conn := new(UEventConn)
 	if err := conn.Connect(UdevEvent); err != nil {
 		t.Fatal("unable to subscribe to netlink uevent, err:", err)
@@ -140,6 +150,30 @@ func TestReadMsgWaitsForMessage(t *testing.T) {
 	defer func() {
 		_ = conn.Close()
 	}()
+
+	start := time.Now()
+	_, err := conn.receive(make([]byte, readBufferSize), make([]byte, oobBufferSize))
+	if err == nil {
+		t.Skip("an event showed up while waiting for the timeout, nothing to observe")
+	}
+	if !errors.Is(err, errReadTimeout) {
+		t.Fatalf("receive should time out on an idle socket, err: %v", err)
+	}
+	if elapsed := time.Since(start); elapsed < readTimeout {
+		t.Fatalf("receive returned after %s, sooner than the %s timeout", elapsed, readTimeout)
+	}
+}
+
+// TestReadMsgWaitsForMessage ensures the receive timeout used to stop the monitoring stays invisible to
+// ReadMsg, which is documented as blocking until a message arrives.
+func TestReadMsgWaitsForMessage(t *testing.T) {
+	conn := new(UEventConn)
+	if err := conn.Connect(UdevEvent); err != nil {
+		t.Fatal("unable to subscribe to netlink uevent, err:", err)
+	}
+	// The socket is deliberately left open: the goroutine below stays inside recvmsg until an event shows up
+	// and closing the descriptor under it would either race with it or hand it a descriptor reused
+	// meanwhile. The kernel releases it when the test binary exits.
 
 	// Buffered so the goroutine cannot leak once the test returned.
 	done := make(chan error, 1)

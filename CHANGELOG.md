@@ -7,6 +7,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased](https://github.com/pilebones/go-udev/compare/v0.10.0...master)
 
+### Documentation
+
+- `UEventConn.Close` now states the sequence to follow while a monitoring worker runs: stop it, wait for the
+  event channel to be closed, then close the connection. Closing it earlier races with the receive in
+  progress, as the race detector reports.
+
 ## [v0.10.0](https://github.com/pilebones/go-udev/compare/v0.9.2...v0.10.0) - 2026-08-12
 
 Hardening release: forged uevents are rejected, monitoring stops when asked to, reading an event costs a

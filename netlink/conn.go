@@ -139,6 +139,8 @@ func (c *UEventConn) enlargeReceiveBuffer() {
 }
 
 // Close allow to close file descriptor and socket bound
+// It must not be called while a monitoring worker is still running: stop it, wait for the event channel to
+// be closed, and only then close the connection.
 func (c *UEventConn) Close() error {
 	// Guard against closing an unrelated descriptor: the zero value of the struct holds Fd 0 (stdin).
 	if c.Fd <= 0 {

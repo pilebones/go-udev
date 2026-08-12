@@ -50,7 +50,7 @@ func TestMonitorReceivesKernelEvent(t *testing.T) {
 	errs := make(chan error, 8)
 
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
-	defer cancel()
+	defer waitMonitoringStopped(t, cancel, queue)
 	go conn.MonitorWithContext(ctx, queue, errs, nil)
 
 	// Let the worker reach its first receive before asking for the event.
