@@ -21,7 +21,7 @@ var (
 )
 
 func init() {
-	filePath = flag.String("file", "", "Optionnal input file path with matcher-rules (default: no matcher)")
+	filePath = flag.String("file", "", "Optional input file path with matcher-rules (default: no matcher)")
 	monitorMode = flag.Bool("monitor", false, "Enable monitor mode")
 	infoMode = flag.Bool("info", false, "Enable crawler mode")
 }
@@ -29,17 +29,19 @@ func init() {
 func main() {
 	flag.Parse()
 
+	if *monitorMode && *infoMode {
+		log.Fatalln("Unable to enable both mode : monitor & info")
+	}
+
+	if !*monitorMode && !*infoMode {
+		log.Println("You should use one mode:", os.Args[0], "-monitor|-info")
+		flag.Usage()
+		os.Exit(1)
+	}
+
 	matcher, err := getOptionnalMatcher()
 	if err != nil {
 		log.Fatalln(err)
-	}
-
-	if monitorMode == nil && infoMode == nil {
-		log.Fatalln("You should use only one mode:", os.Args[0], "-monitor|-info")
-	}
-
-	if (monitorMode != nil && *monitorMode) && (infoMode != nil && *infoMode) {
-		log.Fatalln("Unable to enable both mode : monitor & info")
 	}
 
 	if *monitorMode {
@@ -113,7 +115,11 @@ func monitor(matcher netlink.Matcher) {
 	// Handling message from queue
 	for {
 		select {
-		case uevent := <-queue:
+		case uevent, more := <-queue:
+			if !more {
+				log.Println("Monitoring stopped")
+				return
+			}
 			log.Println("Handle", pretty.Sprint(uevent))
 		case err := <-errors:
 			log.Println("ERROR:", err)
@@ -132,8 +138,8 @@ func getOptionnalMatcher() (matcher netlink.Matcher, err error) {
 		return nil, err
 	}
 
-	if stream == nil {
-		return nil, fmt.Errorf("empty, no rules provided in \"%s\", err: %w", *filePath, err)
+	if len(stream) == 0 {
+		return nil, fmt.Errorf("empty file, no rules provided in %q", *filePath)
 	}
 
 	var rules netlink.RuleDefinitions
