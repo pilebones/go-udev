@@ -1,6 +1,6 @@
 # go-udev [![GitHub Repo stars](https://img.shields.io/github/stars/pilebones/go-udev)](https://somsubhra.github.io/github-release-stats/?username=pilebones&repository=go-udev)
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/pilebones/go-udev)](https://goreportcard.com/report/github.com/pilebones/go-udev) ![Build Status](https://github.com/pilebones/go-udev/workflows/CI/badge.svg) [![Linters Status](https://github.com/pilebones/go-udev/actions/workflows/golangci-lint.yml/badge.svg)](https://github.com/pilebones/go-udev/actions/workflows/golangci-lint.yml) [![Coverage Status](https://coveralls.io/repos/github/pilebones/go-udev/badge.svg?branch=master)](https://coveralls.io/github/pilebones/go-udev?branch=master)
+![Build Status](https://github.com/pilebones/go-udev/workflows/CI/badge.svg) [![Linters Status](https://github.com/pilebones/go-udev/actions/workflows/golangci-lint.yml/badge.svg)](https://github.com/pilebones/go-udev/actions/workflows/golangci-lint.yml) [![Coverage Status](https://coveralls.io/repos/github/pilebones/go-udev/badge.svg?branch=master)](https://coveralls.io/github/pilebones/go-udev?branch=master)
  [![GoDoc](https://godoc.org/github.com/pilebones/go-udev?status.svg)](https://godoc.org/github.com/pilebones/go-udev) [![Release](https://img.shields.io/github/release/pilebones/go-udev.svg)](https://github.com/pilebones/go-udev/releases/latest) [![License](https://img.shields.io/github/license/pilebones/go-udev)](/LICENSE)
 
 Simple udev implementation in Golang developed from scratch.
