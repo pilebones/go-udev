@@ -48,10 +48,18 @@ var (
 	// following messages are still readable.
 	ErrTruncatedMessage = errors.New("netlink message too big, it is dropped")
 
+	// ErrUntrustedSender is returned when a message does not come from the kernel or from udevd, hence
+	// was forged by another process. The message is dropped and the following ones are still readable.
+	ErrUntrustedSender = errors.New("netlink message from an untrusted sender, it is dropped")
+
 	// errReadTimeout tells the receive queue stayed empty for readTimeout, which is not an error for a
 	// caller waiting for hardware to show up. It never escapes this package.
 	errReadTimeout = errors.New("netlink receive timed out")
 )
+
+// oobBufferSize is the room reserved for the control messages of a single receive. Only SCM_CREDENTIALS is
+// expected, twice its size leaves margin for another control message without truncating the credentials.
+var oobBufferSize = 2 * syscall.CmsgSpace(syscall.SizeofUcred)
 
 // Generic connection
 type NetlinkConn struct {
@@ -83,6 +91,13 @@ func (c *UEventConn) Connect(mode Mode) (err error) {
 	// SOCK_CLOEXEC avoids leaking the socket to child processes.
 	if c.Fd, err = syscall.Socket(syscall.AF_NETLINK, syscall.SOCK_RAW|syscall.SOCK_CLOEXEC, syscall.NETLINK_KOBJECT_UEVENT); err != nil {
 		c.Fd = closedFd
+		return
+	}
+
+	// SO_PASSCRED makes the kernel attach the credentials of the sender to every message, which is how a
+	// uevent forged by another process is told apart from a genuine one.
+	if err = syscall.SetsockoptInt(c.Fd, syscall.SOL_SOCKET, syscall.SO_PASSCRED, 1); err != nil {
+		c.closeFd()
 		return
 	}
 
@@ -142,17 +157,17 @@ func (c *UEventConn) closeFd() {
 	c.Fd = closedFd
 }
 
-// receive reads the next message into buf and returns its length.
+// receive reads the next message into buf, checks its sender and returns its length.
 // It needs a single syscall where the previous implementation needed at least three: one MSG_PEEK to
-// measure the message, one more per buffer enlargement, and a last one to actually read it. recvmsg
-// reports a truncation in its output flags, which is all we need to detect and report the messages that
-// do not fit instead of silently handing over a partial one.
-func (c *UEventConn) receive(buf []byte) (int, error) {
+// measure the message, one more per buffer enlargement, and a last one to actually read it. recvmsg also
+// reports the sender address, its credentials and a truncation in its output flags, which is all we need
+// to reject the messages that cannot be trusted and the ones that do not fit.
+func (c *UEventConn) receive(buf, oob []byte) (int, error) {
 	if c.Fd <= 0 {
 		return 0, ErrNotConnected
 	}
 
-	n, _, recvflags, _, err := syscall.Recvmsg(c.Fd, buf, nil, 0)
+	n, oobn, recvflags, from, err := syscall.Recvmsg(c.Fd, buf, oob, 0)
 	if err != nil {
 		// EWOULDBLOCK is EAGAIN on Linux, both mean SO_RCVTIMEO expired on an empty queue.
 		if errors.Is(err, syscall.EAGAIN) || errors.Is(err, syscall.EINTR) {
@@ -166,17 +181,87 @@ func (c *UEventConn) receive(buf []byte) (int, error) {
 		return 0, fmt.Errorf("%w: read %d bytes out of a longer message", ErrTruncatedMessage, n)
 	}
 
+	if recvflags&syscall.MSG_CTRUNC != 0 {
+		return 0, fmt.Errorf("%w: control data truncated, the sender credentials cannot be read", ErrUntrustedSender)
+	}
+
+	if err := checkSender(from, oob[:oobn]); err != nil {
+		return 0, err
+	}
+
 	return n, nil
+}
+
+// checkSender rejects the messages which can only be forged, following what libudev does in
+// udev_monitor_receive_device: writing an uevent on this socket is otherwise enough to make every consumer
+// act on a device which does not exist.
+func checkSender(from syscall.Sockaddr, oob []byte) error {
+	sender, ok := from.(*syscall.SockaddrNetlink)
+	if !ok {
+		return fmt.Errorf("%w: the sender address is not a netlink one", ErrUntrustedSender)
+	}
+
+	// An empty group mask means the message was sent to our port id only. Uevents are always multicast,
+	// so a unicast one comes from a process which picked us as a target.
+	if sender.Groups == 0 {
+		return fmt.Errorf("%w: unicast message sent by pid %d", ErrUntrustedSender, sender.Pid)
+	}
+
+	// Only the kernel, which identifies itself with the port id 0, is allowed to write in the kernel group.
+	if sender.Groups == uint32(KernelEvent) && sender.Pid != 0 {
+		return fmt.Errorf("%w: kernel group message sent by pid %d", ErrUntrustedSender, sender.Pid)
+	}
+
+	cred, err := senderCredentials(oob)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrUntrustedSender, err)
+	}
+
+	// The kernel identifies itself with the pid 0 and the uid 0, but that uid is translated to the
+	// overflow uid when we run in a user namespace where root is not mapped. Rejecting on the uid alone
+	// would drop every legitimate event there, so only a sender positively identified as an unprivileged
+	// process is refused.
+	if cred.Pid != 0 && cred.Uid != 0 {
+		return fmt.Errorf("%w: message sent by pid %d running as uid %d", ErrUntrustedSender, cred.Pid, cred.Uid)
+	}
+
+	return nil
+}
+
+// senderCredentials returns the credentials the kernel attaches to every message thanks to SO_PASSCRED.
+func senderCredentials(oob []byte) (*syscall.Ucred, error) {
+	msgs, err := syscall.ParseSocketControlMessage(oob)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse the control messages: %w", err)
+	}
+
+	for _, msg := range msgs {
+		if msg.Header.Level != syscall.SOL_SOCKET || msg.Header.Type != syscall.SCM_CREDENTIALS {
+			continue
+		}
+
+		cred, err := syscall.ParseUnixCredentials(&msg)
+		if err != nil {
+			return nil, fmt.Errorf("unable to parse the sender credentials: %w", err)
+		}
+
+		return cred, nil
+	}
+
+	return nil, errors.New("no credentials attached to the message")
 }
 
 // ReadMsg allow to read an entire uevent msg
 // It blocks until a message is available, the underlying receive timeout is an implementation detail
 // of the monitoring shutdown and is retried here.
+// A message which is dropped rather than delivered, ErrUntrustedSender or ErrTruncatedMessage, is
+// reported as an error while the connection stays usable, so the caller may log it and read the next one.
 func (c *UEventConn) ReadMsg() ([]byte, error) {
 	buf := make([]byte, readBufferSize)
+	oob := make([]byte, oobBufferSize)
 
 	for {
-		n, err := c.receive(buf)
+		n, err := c.receive(buf, oob)
 		if errors.Is(err, errReadTimeout) {
 			continue
 		}
@@ -213,34 +298,35 @@ func (c *UEventConn) MonitorWithContext(ctx context.Context, queue chan UEvent, 
 
 	if matcher != nil {
 		if err := matcher.Compile(); err != nil {
-			c.notify(ctx, errs, fmt.Errorf("wrong matcher, err: %w", err))
+			notify(ctx, errs, fmt.Errorf("wrong matcher, err: %w", err))
 			return
 		}
 	}
 
-	// The buffer is reused for every message because parsing copies everything it keeps.
+	// The buffers are reused for every message because parsing copies everything it keeps.
 	buf := make([]byte, readBufferSize)
+	oob := make([]byte, oobBufferSize)
 	count := 0
 
 	for ctx.Err() == nil {
-		n, err := c.receive(buf)
+		n, err := c.receive(buf, oob)
 		switch {
 		case errors.Is(err, errReadTimeout):
 			continue // No event so far, loop to check the context again
-		case errors.Is(err, ErrTruncatedMessage):
-			// The message is lost but the socket is still usable, keep going.
-			if !c.notify(ctx, errs, err) {
+		case errors.Is(err, ErrTruncatedMessage), errors.Is(err, ErrUntrustedSender):
+			// The message is dropped but the socket is still usable, report it and keep going.
+			if !notify(ctx, errs, err) {
 				return
 			}
 			continue
 		case err != nil:
-			c.notify(ctx, errs, fmt.Errorf("unable to read uevent, err: %w", err))
+			notify(ctx, errs, fmt.Errorf("unable to read uevent, err: %w", err))
 			return
 		}
 
 		uevent, err := ParseUEvent(buf[:n])
 		if err != nil {
-			if !c.notify(ctx, errs, fmt.Errorf("unable to parse uevent, err: %w", err)) {
+			if !notify(ctx, errs, fmt.Errorf("unable to parse uevent, err: %w", err)) {
 				return
 			}
 			continue // Drop uevent if not known
@@ -290,7 +376,7 @@ func (c *UEventConn) Monitor(queue chan UEvent, errs chan error, matcher Matcher
 
 // notify reports an error to the caller, giving up when the context is done so that a consumer which
 // stopped reading errs cannot keep the worker alive forever.
-func (c *UEventConn) notify(ctx context.Context, errs chan error, err error) bool {
+func notify(ctx context.Context, errs chan error, err error) bool {
 	select {
 	case errs <- err:
 		return true

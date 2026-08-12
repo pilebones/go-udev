@@ -7,6 +7,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased](https://github.com/pilebones/go-udev/compare/v0.9.2...master)
 
+### Security
+
+- Uevents which do not come from the kernel or from udevd are now dropped and reported as the new
+  `ErrUntrustedSender`, following what libudev does: the sender port id, its multicast group and the
+  credentials attached by `SO_PASSCRED` are checked on every message. Forging an uevent, hence making every
+  consumer act on a device which does not exist, used to only require being able to write on the socket.
+
 ### Added
 
 - `UEventConn.MonitorWithContext` monitors until its `context.Context` is cancelled. `Monitor` is kept as

@@ -66,6 +66,10 @@ Handle all kernel message to detect change about plugged or unplugged devices:
 ./go-udev -monitor
 ```
 
+Only the events sent by the kernel or by udevd are delivered, the others are dropped and reported as
+`netlink.ErrUntrustedSender`: an uevent is trivial to forge for a process able to write on the socket, and
+consumers usually act on the devices it announces.
+
 #### Examples
 
 Example of output when a USB storage is plugged:

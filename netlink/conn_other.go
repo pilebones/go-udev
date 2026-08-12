@@ -25,6 +25,10 @@ var (
 	// ErrTruncatedMessage exists for API parity with Linux, where a message too big to be read is dropped.
 	ErrTruncatedMessage = errors.New("netlink message too big, it is dropped")
 
+	// ErrUntrustedSender exists for API parity with Linux, where a message which does not come from the
+	// kernel or from udevd is dropped.
+	ErrUntrustedSender = errors.New("netlink message from an untrusted sender, it is dropped")
+
 	// ErrNotSupported is returned by every operation requiring a NETLINK_KOBJECT_UEVENT socket, which only exists on Linux.
 	// The uevent parsing and matching API remains usable on other platforms.
 	ErrNotSupported = errors.New("netlink kobject uevent is only supported on linux, got: " + runtime.GOOS)
