@@ -13,6 +13,11 @@ type Matcher interface {
 	String() string
 }
 
+var (
+	_ Matcher = (*RuleDefinition)(nil)
+	_ Matcher = (*RuleDefinitions)(nil)
+)
+
 type RuleDefinition struct {
 	Action *string           `json:"action,omitempty"`
 	Env    map[string]string `json:"env,omitempty"`
@@ -20,7 +25,7 @@ type RuleDefinition struct {
 }
 
 // Evaluate return true if all condition match uevent and envs in rule exists in uevent
-func (r RuleDefinition) Evaluate(e UEvent) bool {
+func (r *RuleDefinition) Evaluate(e UEvent) bool {
 	// Compile if needed
 	if r.rule == nil {
 		if err := r.Compile(); err != nil {
@@ -32,7 +37,7 @@ func (r RuleDefinition) Evaluate(e UEvent) bool {
 }
 
 // EvaluateAction return true if the action match
-func (r RuleDefinition) EvaluateAction(a KObjAction) bool {
+func (r *RuleDefinition) EvaluateAction(a KObjAction) bool {
 	// Compile if needed
 	if r.rule == nil {
 		if err := r.Compile(); err != nil {
@@ -48,7 +53,7 @@ func (r RuleDefinition) EvaluateAction(a KObjAction) bool {
 }
 
 // EvaluateEnv return true if all env match and exists
-func (r RuleDefinition) EvaluateEnv(e map[string]string) bool {
+func (r *RuleDefinition) EvaluateEnv(e map[string]string) bool {
 	// Compile if needed
 	if r.rule == nil {
 		if err := r.Compile(); err != nil {
@@ -82,7 +87,7 @@ func (r *RuleDefinition) Compile() error {
 	return nil
 }
 
-func (r RuleDefinition) String() string {
+func (r *RuleDefinition) String() string {
 	b := strings.Builder{}
 	b.WriteString("ruledef ( ")
 
@@ -116,25 +121,14 @@ type rule struct {
 type Env map[string]*regexp.Regexp
 
 func (e Env) Evaluate(env map[string]string) bool {
-	foundEnv := (len(e) == 0)
 	for envName, reg := range e {
-		foundEnv = false
-		for k, v := range env {
-			if k == envName {
-				foundEnv = true
-				if !reg.MatchString(v) {
-					return false
-				}
-				break
-			}
-		}
-		if !foundEnv {
+		v, found := env[envName]
+		if !found || !reg.MatchString(v) {
 			return false
 		}
 	}
 
-	return foundEnv
-
+	return true
 }
 
 // RuleDefinitions is like chained rule with OR operator
@@ -146,18 +140,20 @@ func (rs *RuleDefinitions) AddRule(r RuleDefinition) {
 	rs.Rules = append(rs.Rules, r)
 }
 
+// Compile prepare all rule definitions to be able to Evaluate() an UEvent.
+// Rules are compiled in place, so the regexps are built once and not on each evaluation.
 func (rs *RuleDefinitions) Compile() error {
-	for _, r := range rs.Rules {
-		if err := r.Compile(); err != nil {
+	for i := range rs.Rules {
+		if err := rs.Rules[i].Compile(); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (rs RuleDefinitions) Evaluate(e UEvent) bool {
-	for _, r := range rs.Rules {
-		if r.Evaluate(e) {
+func (rs *RuleDefinitions) Evaluate(e UEvent) bool {
+	for i := range rs.Rules {
+		if rs.Rules[i].Evaluate(e) {
 			return true
 		}
 	}
@@ -165,9 +161,9 @@ func (rs RuleDefinitions) Evaluate(e UEvent) bool {
 }
 
 // EvaluateAction return true if the action match
-func (rs RuleDefinitions) EvaluateAction(a KObjAction) (match bool) {
-	for _, r := range rs.Rules {
-		if r.EvaluateAction(a) {
+func (rs *RuleDefinitions) EvaluateAction(a KObjAction) bool {
+	for i := range rs.Rules {
+		if rs.Rules[i].EvaluateAction(a) {
 			return true
 		}
 	}
@@ -175,19 +171,19 @@ func (rs RuleDefinitions) EvaluateAction(a KObjAction) (match bool) {
 }
 
 // EvaluateEnv return true if almost one env match all regexp
-func (rs RuleDefinitions) EvaluateEnv(e map[string]string) bool {
-	for _, r := range rs.Rules {
-		if r.EvaluateEnv(e) {
+func (rs *RuleDefinitions) EvaluateEnv(e map[string]string) bool {
+	for i := range rs.Rules {
+		if rs.Rules[i].EvaluateEnv(e) {
 			return true
 		}
 	}
 	return false
 }
 
-func (rs RuleDefinitions) String() string {
+func (rs *RuleDefinitions) String() string {
 	output := ""
-	for _, v := range rs.Rules {
-		output += "- " + v.String() + "\n"
+	for i := range rs.Rules {
+		output += "- " + rs.Rules[i].String() + "\n"
 	}
 	return output
 }
