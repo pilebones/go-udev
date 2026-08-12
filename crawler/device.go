@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,6 +18,9 @@ const (
 	BASE_DEVPATH = "/sys/devices"
 )
 
+// errAbort stops the crawling when the caller asks for it, it is not reported as a crawling error.
+var errAbort = errors.New("abort signal receive")
+
 type Device struct {
 	KObj string
 	Env  map[string]string
@@ -24,35 +28,54 @@ type Device struct {
 
 // ExistingDevices return all plugged devices matched by the matcher
 // All uevent files inside /sys/devices is crawled to match right env values
+// The queue is closed when the crawling is over, whatever the reason, so the caller can detect the end of the walk.
 func ExistingDevices(queue chan Device, errs chan error, matcher netlink.Matcher) chan struct{} {
 	quit := make(chan struct{}, 1)
 
-	if matcher != nil {
-		if err := matcher.Compile(); err != nil {
-			errs <- fmt.Errorf("wrong matcher, err: %w", err)
-			quit <- struct{}{}
-			close(queue)
-			return quit
-		}
-	}
-
 	go func() {
-		err := filepath.Walk(BASE_DEVPATH, func(path string, info os.FileInfo, err error) error {
+		// Never emit on errs before returning quit to the caller: an unbuffered errs channel
+		// would block forever because the caller cannot read it yet.
+		defer close(queue)
+
+		if matcher != nil {
+			if err := matcher.Compile(); err != nil {
+				errs <- fmt.Errorf("wrong matcher, err: %w", err)
+				return
+			}
+		}
+
+		// notify reports a non-fatal error to the caller without blocking forever once crawling is aborted.
+		notify := func(err error) error {
+			select {
+			case errs <- err:
+				return nil
+			case <-quit:
+				return errAbort
+			}
+		}
+
+		err := filepath.WalkDir(BASE_DEVPATH, func(path string, d fs.DirEntry, err error) error {
 			select {
 			case <-quit:
-				return errors.New("abort signal receive")
+				return errAbort
 			default:
 				if err != nil {
-					return err
+					if path == BASE_DEVPATH {
+						return err // sysfs is not available at all, no point in walking further
+					}
+
+					// A single unreadable entry (missing permission, device unplugged while crawling)
+					// must not abort the whole walk.
+					return notify(err)
 				}
 
-				if info.IsDir() || info.Name() != "uevent" {
+				if d.IsDir() || d.Name() != "uevent" {
 					return nil
 				}
 
 				env, err := getEventFromUEventFile(path)
 				if err != nil {
-					return err
+					return notify(err)
 				}
 
 				kObj := filepath.Dir(path)
@@ -63,19 +86,21 @@ func ExistingDevices(queue chan Device, errs chan error, matcher netlink.Matcher
 				}
 
 				if matcher == nil || matcher.EvaluateEnv(env) {
-					queue <- Device{
+					select {
+					case queue <- Device{
 						KObj: kObj,
 						Env:  env,
+					}:
+					case <-quit:
+						return errAbort
 					}
 				}
 				return nil
 			}
 		})
-		if err != nil {
-			errs <- err
+		if err != nil && !errors.Is(err, errAbort) {
+			_ = notify(err)
 		}
-
-		close(queue)
 	}()
 	return quit
 }
