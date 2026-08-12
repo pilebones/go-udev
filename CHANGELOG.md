@@ -7,6 +7,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased](https://github.com/pilebones/go-udev/compare/v0.9.2...master)
 
+### Changed
+
+- The command line tool moved from the root package to `cmd/go-udev`, install it with
+  `go install github.com/pilebones/go-udev/cmd/go-udev@latest` and build it with `go build ./cmd/go-udev`.
+- The `github.com/kr/pretty` dependency is dropped, the module now has no external dependency at all. Uevents are
+  printed by a local formatter which sorts the env vars, so the output is stable from one run to the next.
+
 ### Fixed
 
 - `netlink`: `TestParseUdevEvent` embedded libudev headers captured on a little endian machine, so it was skipped on

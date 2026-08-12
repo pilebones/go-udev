@@ -13,7 +13,9 @@
 # Project-local glide cache, RE: https://github.com/Masterminds/glide/issues/736
 .glide/
 
-go-udev
+# Compiled binary, anchored to avoid matching the cmd/go-udev directory
+/go-udev
+/cmd/go-udev/go-udev
 *.log
 *.swp
 

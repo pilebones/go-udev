@@ -7,12 +7,12 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"slices"
+	"strings"
 	"syscall"
 
 	"github.com/pilebones/go-udev/crawler"
 	"github.com/pilebones/go-udev/netlink"
-
-	"github.com/kr/pretty"
 )
 
 var (
@@ -92,7 +92,7 @@ func monitor(matcher netlink.Matcher) {
 
 	conn := new(netlink.UEventConn)
 	if err := conn.Connect(netlink.UdevEvent); err != nil {
-		log.Fatalln("Unable to connect to Netlink Kobject UEvent socket")
+		log.Fatalln("Unable to connect to Netlink Kobject UEvent socket, err:", err)
 	}
 	defer func() {
 		_ = conn.Close()
@@ -120,11 +120,27 @@ func monitor(matcher netlink.Matcher) {
 				log.Println("Monitoring stopped")
 				return
 			}
-			log.Println("Handle", pretty.Sprint(uevent))
+			log.Println("Handle", format(uevent))
 		case err := <-errors:
 			log.Println("ERROR:", err)
 		}
 	}
+}
+
+// format renders an uevent in a human readable way, with env vars sorted by name to keep the output stable
+func format(uevent netlink.UEvent) string {
+	names := make([]string, 0, len(uevent.Env))
+	for name := range uevent.Env {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+
+	envs := make([]string, 0, len(names))
+	for _, name := range names {
+		envs = append(envs, fmt.Sprintf("%s=%q", name, uevent.Env[name]))
+	}
+
+	return fmt.Sprintf("UEvent{Action: %s, KObj: %s, Env: {%s}}", uevent.Action, uevent.KObj, strings.Join(envs, ", "))
 }
 
 // getOptionnalMatcher Parse and load config file which contains rules for matching
