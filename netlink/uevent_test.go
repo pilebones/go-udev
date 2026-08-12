@@ -1,6 +1,7 @@
 package netlink
 
 import (
+	"bytes"
 	"fmt"
 	"runtime"
 	"testing"
@@ -62,6 +63,47 @@ func TestParseUEvent(testing *testing.T) {
 
 	uevent, err := ParseUEvent(raw)
 	t.FatalfIf(err == nil && uevent != nil, "Event parsed successfully but it should be invalid, err: %s", err.Error())
+}
+
+// TestParseUEventMalformed ensures a truncated or malformed message is rejected with an error
+// instead of panicking, since ParseUEvent is exported and fed with data from the wire.
+func TestParseUEventMalformed(t *testing.T) {
+	samples := [][]byte{
+		nil,
+		[]byte(""),
+		[]byte("\x00"),
+		[]byte("add@/devices/foo"), // no trailing NUL at all
+		[]byte("add@/devices/foo\x00INVALID_ENV\x00"),      // env var without separator
+		[]byte("bogus@/devices/foo\x00"),                   // unknown action
+		[]byte("add/devices/foo\x00"),                      // missing @ separator
+		[]byte("add@/devices/foo@bar\x00"),                 // too many @ separators
+		[]byte("libudev\x00"),                              // libudev prefix but truncated header
+		bytes.Repeat([]byte("libudev\x00"), 6),             // libudev prefix, long enough, wrong magic
+		append([]byte("libudev\x00"), make([]byte, 40)...), // libudev prefix, zeroed header
+	}
+
+	for i, raw := range samples {
+		uevent, err := ParseUEvent(raw)
+		if err == nil {
+			t.Fatalf("sample n°%d should not be parsed successfully, got: %v", i, uevent)
+		}
+		if uevent != nil {
+			t.Fatalf("sample n°%d should not return an event along with err: %v", i, err)
+		}
+	}
+}
+
+// TestParseUEventEnvValueWithSeparator ensures an env var whose value contains "=" is kept as-is,
+// the first separator being the only one splitting the name from the value.
+func TestParseUEventEnvValueWithSeparator(t *testing.T) {
+	uevent, err := ParseUEvent([]byte("add@/devices/foo\x00MODALIAS=a=b=c\x00"))
+	if err != nil {
+		t.Fatalf("unable to parse uevent, err: %v", err)
+	}
+
+	if got := uevent.Env["MODALIAS"]; got != "a=b=c" {
+		t.Fatalf(`wrong env value (got: %q, expected: "a=b=c")`, got)
+	}
 }
 
 func TestParseUdevEvent(testing *testing.T) {
@@ -338,7 +380,7 @@ func TestParseKObjAction(t *testing.T) {
 	}
 
 	fakeKObjAction := "wrong"
-	expectedError := fmt.Errorf("unknow kobject action (got: %s)", fakeKObjAction)
+	expectedError := fmt.Errorf("unknown kobject action (got: %s)", fakeKObjAction)
 	if _, err := ParseKObjAction(fakeKObjAction); err.Error() != expectedError.Error() {
 		t.Fatalf("wrong kobj action must be detected, got: %v", err)
 	}
