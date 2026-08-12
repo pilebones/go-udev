@@ -2,8 +2,9 @@ package netlink
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
-	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -106,21 +107,42 @@ func TestParseUEventEnvValueWithSeparator(t *testing.T) {
 	}
 }
 
-func TestParseUdevEvent(testing *testing.T) {
-	if runtime.GOARCH == "s390x" || runtime.GOARCH == "ppc" {
-		testing.Skip("This test assumes little-endian architecture")
-	}
+// udevMonitorHeader builds a udev_monitor_netlink_header for the given payload, the way libudev does:
+// the magic number in network byte order, the other fields in the byte order given by order (native for udevd).
+// Building it instead of hardcoding a capture keeps the samples valid on big and little endian platforms alike.
+func udevMonitorHeader(order binary.ByteOrder, payloadLen int) []byte {
+	header := make([]byte, libudevHeaderLength)
+	copy(header, "libudev\x00")
+	binary.BigEndian.PutUint32(header[libudevMagicOffset:], libudevMagic)
+	order.PutUint32(header[libudevHeaderSizeOffset:], libudevHeaderLength)
+	order.PutUint32(header[libudevPayloadOffOffset:], libudevHeaderLength)
+	order.PutUint32(header[20:], uint32(payloadLen)) // properties_len
+	return header
+}
 
+// foreignByteOrder returns the byte order the running platform does not use.
+func foreignByteOrder() binary.ByteOrder {
+	if binary.NativeEndian.Uint16([]byte{0x01, 0x00}) == 0x0001 {
+		return binary.BigEndian
+	}
+	return binary.LittleEndian
+}
+
+// udevMonitorEvent assembles a complete udev message for the given payload.
+func udevMonitorEvent(order binary.ByteOrder, payload string) []byte {
+	return append(udevMonitorHeader(order, len(payload)), payload...)
+}
+
+func TestParseUdevEvent(testing *testing.T) {
 	t := testingWrapper{testing}
 
-	// Input samples obtained by running the main testing binary in monitor mode
+	// Payload samples obtained by running the main testing binary in monitor mode
 	// and having fmt.Printf("%q\n", raw) in the ParseUEvent method.
 	samples := []struct {
-		Input    []byte
+		Payload  string
 		Expected UEvent
 	}{{
-		Input: []byte("libudev\x00\xfe\xed\xca\xfe(\x00\x00\x00(\x00\x00\x00\xd5\x03\x00\x00\x8a\xfa\x90\xc8\x00\x00\x00\x00\x02\x00\x04\x00\x10\x80\x00\x00" +
-			"ACTION=remove\x00DEVPATH=/devices/pci0000:00/0000:00:14.0/usb1/1-2/1-2:1.0/ttyUSB0/tty/ttyUSB0\x00SUBSYSTEM=tty\x00" +
+		Payload: "ACTION=remove\x00DEVPATH=/devices/pci0000:00/0000:00:14.0/usb1/1-2/1-2:1.0/ttyUSB0/tty/ttyUSB0\x00SUBSYSTEM=tty\x00" +
 			"DEVNAME=/dev/ttyUSB0\x00SEQNUM=4344\x00MAJOR=188\x00MINOR=0\x00USEC_INITIALIZED=75223543693\x00ID_BUS=usb\x00" +
 			"ID_VENDOR_ID=0403\x00ID_MODEL_ID=6001\x00ID_PCI_CLASS_FROM_DATABASE=Serial bus controller\x00" +
 			"ID_PCI_SUBCLASS_FROM_DATABASE=USB controller\x00ID_PCI_INTERFACE_FROM_DATABASE=XHCI\x00" +
@@ -129,7 +151,7 @@ func TestParseUdevEvent(testing *testing.T) {
 			"ID_REVISION=0600\x00ID_SERIAL=FTDI_FT232R_USB_UART_AH06W0EQ\x00ID_SERIAL_SHORT=AH06W0EQ\x00ID_TYPE=generic\x00" +
 			"ID_USB_INTERFACES=:ffffff:\x00ID_USB_INTERFACE_NUM=00\x00ID_USB_DRIVER=ftdi_sio\x00" +
 			"ID_PATH=pci-0000:00:14.0-usb-0:2:1.0\x00ID_PATH_TAG=pci-0000_00_14_0-usb-0_2_1_0\x00ID_MM_CANDIDATE=1\x00" +
-			"DEVLINKS=/dev/serial/by-path/pci-0000:00:14.0-usb-0:2:1.0-port0 /dev/serial/by-id/usb-FTDI_FT232R_USB_UART_AH06W0EQ-if00-port0\x00TAGS=:systemd:\x00"),
+			"DEVLINKS=/dev/serial/by-path/pci-0000:00:14.0-usb-0:2:1.0-port0 /dev/serial/by-id/usb-FTDI_FT232R_USB_UART_AH06W0EQ-if00-port0\x00TAGS=:systemd:\x00",
 		Expected: UEvent{
 			Action: REMOVE,
 			KObj:   "/devices/pci0000:00/0000:00:14.0/usb1/1-2/1-2:1.0/ttyUSB0/tty/ttyUSB0",
@@ -169,14 +191,13 @@ func TestParseUdevEvent(testing *testing.T) {
 			},
 		},
 	}, {
-		Input: []byte("libudev\x00\xfe\xed\xca\xfe(\x00\x00\x00(\x00\x00\x00\xf2\x02\x00\x00\x05w\xc5\xe5'\xf8\xf5\f\x00\x00\x00\x00\x00\x00\x00\x00" +
-			"ACTION=add\x00DEVPATH=/devices/pci0000:00/0000:00:14.0/usb1/1-2\x00SUBSYSTEM=usb\x00DEVNAME=/dev/bus/usb/001/033\x00DEVTYPE=usb_device\x00" +
+		Payload: "ACTION=add\x00DEVPATH=/devices/pci0000:00/0000:00:14.0/usb1/1-2\x00SUBSYSTEM=usb\x00DEVNAME=/dev/bus/usb/001/033\x00DEVTYPE=usb_device\x00" +
 			"PRODUCT=10c4/ea60/100\x00TYPE=0/0/0\x00BUSNUM=001\x00DEVNUM=033\x00SEQNUM=4410\x00MAJOR=189\x00MINOR=32\x00USEC_INITIALIZED=77155422759\x00" +
 			"ID_VENDOR=Silicon_Labs\x00ID_VENDOR_ENC=Silicon\\x20Labs\x00ID_VENDOR_ID=10c4\x00ID_MODEL=CP2102_USB_to_UART_Bridge_Controller\x00" +
 			"ID_MODEL_ENC=CP2102\\x20USB\\x20to\\x20UART\\x20Bridge\\x20Controller\x00ID_MODEL_ID=ea60\x00ID_REVISION=0100\x00" +
 			"ID_SERIAL=Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001\x00ID_SERIAL_SHORT=0001\x00ID_BUS=usb\x00ID_USB_INTERFACES=:ff0000:\x00" +
 			"ID_VENDOR_FROM_DATABASE=Cygnal Integrated Products, Inc.\x00ID_MODEL_FROM_DATABASE=CP2102/CP2109 UART Bridge Controller [CP210x family]\x00" +
-			"DRIVER=usb\x00ID_MM_DEVICE_MANUAL_SCAN_ONLY=1\x00"),
+			"DRIVER=usb\x00ID_MM_DEVICE_MANUAL_SCAN_ONLY=1\x00",
 		Expected: UEvent{
 			Action: ADD,
 			KObj:   "/devices/pci0000:00/0000:00:14.0/usb1/1-2",
@@ -214,21 +235,32 @@ func TestParseUdevEvent(testing *testing.T) {
 	}}
 
 	for _, s := range samples {
-		uevent, err := ParseUEvent(s.Input)
+		uevent, err := ParseUEvent(udevMonitorEvent(binary.NativeEndian, s.Payload))
 		t.FatalfIf(err != nil, "Unable to parse uevent: %s", err)
 		ok, err := uevent.Equal(s.Expected)
 		t.FatalfIf(!ok || err != nil, "Uevent should be equal: bijectivity fail,\n%s", err)
 	}
 
-	invalidMagic := []byte("libudev\x00\xfe\xed\xca\xff(\x00\x00\x00(\x00\x00\x00\xd5\x03\x00\x00\x8a\xfa\x90\xc8\x00\x00\x00\x00\x02\x00\x04\x00\x10\x80\x00\x00ACTION=remove\x00DEVPATH=foo\x00")
+	payload := "ACTION=remove\x00DEVPATH=foo\x00"
+
+	invalidMagic := udevMonitorEvent(binary.NativeEndian, payload)
+	binary.BigEndian.PutUint32(invalidMagic[libudevMagicOffset:], libudevMagic+1)
 	uevent, err := ParseUEvent(invalidMagic)
 	t.FatalfIf(err == nil && uevent != nil, "Event parsed successfully but it should be invalid, err: %s", err)
 	t.FatalfIf(err.Error() != "cannot parse libudev event: magic number mismatch", "Expecting magic number error, got %s", err)
 
-	invalidOffset := []byte("libudev\x00\xfe\xed\xca\xfe(\xff\xff\xff(\xff\xff\xff\xd5\xf3\xff\xff\x8a\xfa\x90\xc8\x00\x00\x00\x00\x02\x00\x04\x00\x10\x80\x00\x00ACTION=remove\x00DEVPATH=foo\x00")
+	invalidOffset := udevMonitorEvent(binary.NativeEndian, payload)
+	binary.NativeEndian.PutUint32(invalidOffset[libudevPayloadOffOffset:], uint32(len(invalidOffset)))
 	uevent, err = ParseUEvent(invalidOffset)
 	t.FatalfIf(err == nil && uevent != nil, "Event parsed successfully but it should be invalid, err: %s", err)
-	t.FatalfIf(err.Error() != "cannot parse libudev event: invalid data offset", "Expecting invalud offset error, got %s", err)
+	t.FatalfIf(err.Error() != "cannot parse libudev event: invalid data offset", "Expecting invalid offset error, got %s", err)
+
+	// A header written with the opposite byte order cannot be decoded: the magic number is byte order
+	// agnostic, so the header size is what gives it away.
+	foreign := udevMonitorEvent(foreignByteOrder(), payload)
+	uevent, err = ParseUEvent(foreign)
+	t.FatalfIf(err == nil && uevent != nil, "Event parsed successfully but it should be invalid, err: %s", err)
+	t.FatalfIf(!strings.Contains(err.Error(), "invalid header size"), "Expecting invalid header size error, got %s", err)
 }
 
 func TestUEventEquality(testing *testing.T) {

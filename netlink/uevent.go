@@ -27,9 +27,10 @@ const libudevMagic = 0xfeedcafe
 // Size of the udev_monitor_netlink_header struct: the "libudev\0" prefix followed by 8 32-bits fields.
 const libudevHeaderLength = 40
 
-// Offsets of the two header fields go-udev relies on, relative to the start of the header.
+// Offsets of the header fields go-udev relies on, relative to the start of the header.
 const (
 	libudevMagicOffset      = 8
+	libudevHeaderSizeOffset = 12
 	libudevPayloadOffOffset = 16
 )
 
@@ -95,6 +96,8 @@ func (e UEvent) Equal(e2 UEvent) (bool, error) {
 // go-udev only looks at the "magic" number to filter out possibly invalid packets, and at the payload offset. Other fields of the header
 // are ignored.
 // Note, only some of the fields of the header use network byte order, for the rest udev uses native byte order of the platform.
+// This works on both big and little endian platforms because udevd runs on the same host, hence shares its byte order.
+// A message produced by a machine using the opposite byte order is rejected rather than decoded incorrectly.
 func parseUdevEvent(raw []byte) (e *UEvent, err error) {
 	if len(raw) < libudevHeaderLength {
 		return nil, fmt.Errorf("cannot parse libudev event: truncated header")
@@ -104,6 +107,14 @@ func parseUdevEvent(raw []byte) (e *UEvent, err error) {
 	magic := binary.BigEndian.Uint32(raw[libudevMagicOffset:])
 	if magic != libudevMagic {
 		return nil, fmt.Errorf("cannot parse libudev event: magic number mismatch")
+	}
+
+	// The header size is stored in native byte order and cannot exceed the message itself. Since the magic
+	// number is byte order agnostic, this is what tells a corrupted header from one written by a machine
+	// using the opposite byte order, which we have no way to decode.
+	headerSize := binary.NativeEndian.Uint32(raw[libudevHeaderSizeOffset:])
+	if headerSize < libudevHeaderLength || headerSize > uint32(len(raw)) {
+		return nil, fmt.Errorf("cannot parse libudev event: invalid header size (got: %d)", headerSize)
 	}
 
 	// the payload offset int is stored in native byte order.
