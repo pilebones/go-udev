@@ -10,27 +10,32 @@ on:
       - master
       - staging
       - develop
+permissions:
+  contents: read
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Setup Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v5
         with:
           go-version: "1.24"
       - name: Run vet
         run: go vet ./...
+      - name: Check gofmt
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
       - name: Run tests
-        run: go test -v -coverprofile=profile.cov ./...
+        run: go test -race -v -coverprofile=profile.cov ./...
       - name: Send coverage
         uses: shogo82148/actions-goveralls@v1
         with:
           path-to-profile: profile.cov
-          flag-name: ${{ matrix.go }}
           parallel: true
       - name: Run build
         run: go build .
+      - name: Check cross-platform build
+        run: GOOS=darwin go build ./... && GOOS=windows go build ./...
   coverage:
     needs: test
     runs-on: ubuntu-latest

@@ -1,0 +1,14 @@
+version: "2"
+
+linters:
+  # Enabling revive would also report the ~25 exported symbols still missing a doc comment,
+  # which is left as a dedicated cleanup.
+  default: standard
+  enable:
+    - bodyclose
+    - errorlint
+    - misspell
+
+formatters:
+  enable:
+    - gofmt
