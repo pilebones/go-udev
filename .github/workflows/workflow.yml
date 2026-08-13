@@ -33,13 +33,41 @@ jobs:
         uses: shogo82148/actions-goveralls@v1
         with:
           path-to-profile: profile.cov
+          flag-name: unprivileged
           parallel: true
       - name: Run build
         run: go build ./...
       - name: Check cross-platform build
         run: GOOS=darwin go build ./... && GOOS=windows go build ./...
+  privileged-test:
+    # Asking the kernel for an uevent means writing in sysfs and sending one means holding CAP_NET_ADMIN, so
+    # the tests covering a genuine event and the rejection of a forged one skip themselves in the job above.
+    # They are what exercises the nominal path of the monitoring, hence this job running them as root.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.26"
+          cache-dependency-path: go.mod
+      - name: Run privileged tests
+        shell: bash # for pipefail, so a failing test is not hidden by the pipe below
+        run: |
+          sudo -E env "PATH=$PATH" go test -race -v -coverprofile=profile.cov \
+            -run 'TestMonitorReceivesKernelEvent|TestMonitorIgnoresForgedUEvent' ./netlink/ | tee output.log
+          if grep -q -- '--- SKIP' output.log; then
+            echo '::error::the privileged tests skipped themselves, this job no longer covers anything'
+            exit 1
+          fi
+      - name: Send coverage
+        uses: shogo82148/actions-goveralls@v1
+        with:
+          path-to-profile: profile.cov
+          flag-name: privileged
+          parallel: true
   coverage:
-    needs: test
+    needs: [test, privileged-test]
     runs-on: ubuntu-latest
     steps:
       - name: Code coverage (Coveralls)
