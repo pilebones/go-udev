@@ -28,6 +28,39 @@ func TestConnect(t *testing.T) {
 	}()
 }
 
+// TestNotConnected ensures every operation refuses a connection which was never opened or is already
+// closed, rather than working on an unrelated descriptor. The zero value of the struct holds the descriptor
+// 0, which is stdin, so a missing guard here used to close it.
+func TestNotConnected(t *testing.T) {
+	var conn UEventConn
+
+	if _, err := conn.receive(make([]byte, readBufferSize), make([]byte, oobBufferSize)); !errors.Is(err, ErrNotConnected) {
+		t.Fatalf("receive should refuse a closed connection, err: %v", err)
+	}
+	if _, err := conn.ReadMsg(); !errors.Is(err, ErrNotConnected) {
+		t.Fatalf("ReadMsg should refuse a closed connection, err: %v", err)
+	}
+	if _, err := conn.ReadUEvent(); !errors.Is(err, ErrNotConnected) {
+		t.Fatalf("ReadUEvent should refuse a closed connection, err: %v", err)
+	}
+	if err := conn.Close(); !errors.Is(err, ErrNotConnected) {
+		t.Fatalf("Close should leave the descriptor 0 alone, err: %v", err)
+	}
+
+	// Closing twice is the same situation: the descriptor may have been handed to another part of the
+	// program in the meantime, so the second call must not touch it.
+	opened := new(UEventConn)
+	if err := opened.Connect(UdevEvent); err != nil {
+		t.Fatal("unable to subscribe to netlink uevent, err:", err)
+	}
+	if err := opened.Close(); err != nil {
+		t.Fatalf("the first Close should succeed, err: %v", err)
+	}
+	if err := opened.Close(); !errors.Is(err, ErrNotConnected) {
+		t.Fatalf("the second Close should be refused, err: %v", err)
+	}
+}
+
 func TestMonitor(t *testing.T) {
 	conn := new(UEventConn)
 	if err := conn.Connect(UdevEvent); err != nil {

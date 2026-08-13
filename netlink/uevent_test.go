@@ -263,6 +263,35 @@ func TestParseUdevEvent(testing *testing.T) {
 	t.FatalfIf(!strings.Contains(err.Error(), "invalid header size"), "Expecting invalid header size error, got %s", err)
 }
 
+// TestParseUdevEventMalformed covers the payloads a libudev message can carry once its header is valid.
+// It calls the parser directly because ParseUEvent filters the shortest messages out beforehand, so the
+// truncated header is only reachable from here.
+func TestParseUdevEventMalformed(t *testing.T) {
+	samples := []struct {
+		name string
+		raw  []byte
+	}{
+		{"truncated header", []byte("libudev\x00")},
+		{"payload without any NUL", udevMonitorEvent(binary.NativeEndian, "ACTION=add")},
+		{"env var without separator", udevMonitorEvent(binary.NativeEndian, "ACTION=add\x00NO_SEPARATOR\x00")},
+		{"unknown action", udevMonitorEvent(binary.NativeEndian, "ACTION=bogus\x00DEVPATH=/devices/foo\x00")},
+		{"missing action", udevMonitorEvent(binary.NativeEndian, "DEVPATH=/devices/foo\x00")},
+	}
+
+	for _, sample := range samples {
+		t.Run(sample.name, func(t *testing.T) {
+			uevent, err := parseUdevEvent(sample.raw)
+			if err == nil {
+				t.Fatalf("the event should not be parsed successfully, got: %v", uevent)
+			}
+			if uevent != nil {
+				t.Fatalf("no event should be returned along with err: %v", err)
+			}
+			t.Log("Got expected rejection:", err)
+		})
+	}
+}
+
 func TestUEventEquality(testing *testing.T) {
 	type testcase struct {
 		object    UEvent
