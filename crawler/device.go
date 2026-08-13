@@ -30,6 +30,12 @@ type Device struct {
 // All uevent files inside /sys/devices is crawled to match right env values
 // The queue is closed when the crawling is over, whatever the reason, so the caller can detect the end of the walk.
 func ExistingDevices(queue chan Device, errs chan error, matcher netlink.Matcher) chan struct{} {
+	return existingDevices(BASE_DEVPATH, queue, errs, matcher)
+}
+
+// existingDevices crawls the given root, which the tests replace with a sysfs of their own to exercise the
+// cases a real /sys/devices cannot be made to produce on demand.
+func existingDevices(root string, queue chan Device, errs chan error, matcher netlink.Matcher) chan struct{} {
 	quit := make(chan struct{}, 1)
 
 	go func() {
@@ -54,13 +60,13 @@ func ExistingDevices(queue chan Device, errs chan error, matcher netlink.Matcher
 			}
 		}
 
-		err := filepath.WalkDir(BASE_DEVPATH, func(path string, d fs.DirEntry, err error) error {
+		err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 			select {
 			case <-quit:
 				return errAbort
 			default:
 				if err != nil {
-					if path == BASE_DEVPATH {
+					if path == root {
 						return err // sysfs is not available at all, no point in walking further
 					}
 
